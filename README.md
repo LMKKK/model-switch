@@ -10,15 +10,20 @@
 
 ## 安装
 
+### npm 全局安装（推荐）
+
+```bash
+npm install -g model-switch
+```
+
+安装完成后即可直接使用 `ms` 命令。需要 Node.js >= 16。
+
+### 从源码构建
+
 ```bash
 bun install
 bun run build
-```
-
-构建产物为 `dist/ms`，可将其移动到 `$PATH` 中的目录：
-
-```bash
-cp dist/ms /usr/local/bin/ms
+# 构建产物为 dist/ms.js，可将其添加到 PATH
 ```
 
 ## 用法
@@ -76,6 +81,6 @@ bun run src/index.ts claude --help
 # 类型检查
 npx tsc --noEmit
 
-# 构建二进制
+# 构建 JavaScript
 bun run build
 ```

@@ -1,15 +1,39 @@
 {
   "name": "model-switch",
+  "version": "1.0.0",
+  "description": "CLI 工具，用于在不同 LLM 提供商之间切换 Claude Code 的模型配置",
   "module": "src/index.ts",
   "type": "module",
-  "private": true,
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/LMKKK/model-switch.git"
+  },
+  "bin": {
+    "ms": "dist/ms.js"
+  },
+  "files": [
+    "dist/"
+  ],
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "keywords": [
+    "claude-code",
+    "claude",
+    "model",
+    "switch",
+    "llm",
+    "cli"
+  ],
+  "scripts": {
+    "build": "bun build ./src/index.ts --target node --banner '#!/usr/bin/env node' --outfile dist/ms.js",
+    "prepublishOnly": "bun run build"
+  },
   "devDependencies": {
     "@types/bun": "latest",
     "@types/prompts": "^2.4.9",
     "typescript": "^5"
-  },
-  "scripts": {
-    "build": "bun build ./src/index.ts --compile --outfile dist/ms"
   },
   "dependencies": {
     "chalk": "^5.6.2",

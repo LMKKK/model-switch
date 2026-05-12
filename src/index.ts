@@ -13,6 +13,7 @@ const program = new Command();
 program
   .name("ms")
   .description("模型配置切换工具")
+  // NOTE: 与 package.json 的 version 字段保持同步
   .version("1.0.0");
 
 const claude = program
