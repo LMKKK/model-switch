@@ -1,0 +1,19 @@
+{
+  "name": "model-switch",
+  "module": "src/index.ts",
+  "type": "module",
+  "private": true,
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/prompts": "^2.4.9",
+    "typescript": "^5"
+  },
+  "scripts": {
+    "build": "bun build ./src/index.ts --compile --outfile dist/ms"
+  },
+  "dependencies": {
+    "chalk": "^5.6.2",
+    "commander": "^14.0.3",
+    "prompts": "^2.4.2"
+  }
+}
