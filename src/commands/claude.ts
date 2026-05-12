@@ -62,6 +62,10 @@ export async function listCommand(): Promise<void> {
     console.log(`${prefix} ${displayName}`);
     console.log(chalk.dim(`     URL: ${config.ANTHROPIC_BASE_URL}`));
     console.log(chalk.dim(`     Model: ${config.ANTHROPIC_MODEL || "(未设置)"}`));
+    console.log(chalk.dim(`     Reasoning Model: ${config.ANTHROPIC_REASONING_MODEL || "(未设置)"}`));
+    console.log(chalk.dim(`     Default Opus Model: ${config.ANTHROPIC_DEFAULT_OPUS_MODEL || "(未设置)"}`));
+    console.log(chalk.dim(`     Default Haiku Model: ${config.ANTHROPIC_DEFAULT_HAIKU_MODEL || "(未设置)"}`));
+    console.log(chalk.dim(`     Default Sonnet Model: ${config.ANTHROPIC_DEFAULT_SONNET_MODEL || "(未设置)"}`));
     console.log();
   }
 }

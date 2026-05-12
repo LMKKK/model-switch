@@ -28,7 +28,7 @@
 #### Scenario: 列出已有配置
 
 - **WHEN** 配置文件存在且包含至少一个模型配置
-- **THEN** 系统以格式化列表输出每个配置的名称、BASE_URL 和 MODEL 摘要，当前激活的配置高亮标记
+- **THEN** 系统以格式化列表输出每个配置的 Name、Base URL、Model、Reasoning Model、Default Opus Model、Default Haiku Model、Default Sonnet Model 摘要，当前激活的配置高亮标记
 
 #### Scenario: 配置文件不存在时提示
 
