@@ -1,5 +1,5 @@
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { join, dirname } from "node:path";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import type { ModelConfig, ModelStore } from "../types";
 import chalk from "chalk";
@@ -34,7 +34,7 @@ export function readConfigs(): Record<string, ModelConfig> {
 
 export function writeConfigs(models: Record<string, ModelConfig>): void {
   const filePath = getConfigFilePath();
-  const dir = filePath.substring(0, filePath.lastIndexOf("/"));
+  const dir = dirname(filePath);
 
   if (!existsSync(dir)) {
     mkdirSync(dir, { recursive: true });
