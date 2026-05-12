@@ -1,6 +1,7 @@
 import { homedir } from "node:os";
 import { join, dirname } from "node:path";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync } from "node:fs";
+import { validateAndWriteJSON } from "./json-validate";
 import type { ModelConfig, ModelStore } from "../types";
 import chalk from "chalk";
 
@@ -42,5 +43,5 @@ export function writeConfigs(models: Record<string, ModelConfig>): void {
   }
 
   const data: ModelStore = { models };
-  writeFileSync(filePath, JSON.stringify(data, null, 2) + "\n", "utf-8");
+  validateAndWriteJSON(filePath, data);
 }

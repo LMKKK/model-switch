@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import type { ModelConfig } from "../types";
 import { readConfigs } from "./config";
+import { validateAndWriteJSON } from "./json-validate";
 import chalk from "chalk";
 import prompts from "prompts";
 
@@ -30,10 +31,11 @@ export function readClaudeSettings(): Partial<ModelConfig> {
   try {
     const raw = readFileSync(filePath, "utf-8");
     const data = JSON.parse(raw);
+    const env = (data as Record<string, unknown>).env as Record<string, unknown> | undefined;
     const result: Partial<ModelConfig> = {};
     for (const key of ANTHROPIC_KEYS) {
-      if (typeof data[key] === "string" && data[key].length > 0) {
-        result[key] = data[key];
+      if (env && typeof env[key] === "string" && (env[key] as string).length > 0) {
+        result[key] = env[key] as string;
       }
     }
     return result;
@@ -87,12 +89,13 @@ export async function activateConfig(name: string, config: ModelConfig): Promise
 
   // Merge config, handling empty values
   const merged = { ...config };
+  const existingEnv = (existing.env as Record<string, unknown>) ?? {};
   for (const key of ANTHROPIC_KEYS) {
     if (!merged[key] || merged[key].length === 0) {
       // Try to fill from existing settings
-      if (typeof existing[key] === "string" && (existing[key] as string).length > 0) {
-        merged[key] = existing[key] as string;
-        console.log(chalk.dim(`${key} 未设置，使用当前值: ${(existing[key] as string).substring(0, 40)}...`));
+      if (typeof existingEnv[key] === "string" && (existingEnv[key] as string).length > 0) {
+        merged[key] = existingEnv[key] as string;
+        console.log(chalk.dim(`${key} 未设置，使用当前值: ${(existingEnv[key] as string).substring(0, 40)}...`));
       } else {
         // Don't write empty values
         delete (merged as Record<string, string | undefined>)[key];
@@ -101,7 +104,7 @@ export async function activateConfig(name: string, config: ModelConfig): Promise
     }
   }
 
-  // Preserve non-ANTHROPIC fields
+  // Preserve non-ANTHROPIC top-level fields
   const newSettings: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(existing)) {
     if (!ANTHROPIC_KEYS.includes(key as keyof ModelConfig)) {
@@ -109,9 +112,17 @@ export async function activateConfig(name: string, config: ModelConfig): Promise
     }
   }
 
-  // Write merged settings
-  Object.assign(newSettings, merged);
-  writeFileSync(filePath, JSON.stringify(newSettings, null, 2) + "\n", "utf-8");
+  // Build env field: preserve non-ANTHROPIC keys, add ANTHROPIC keys
+  const env: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(existingEnv)) {
+    if (!ANTHROPIC_KEYS.includes(key as keyof ModelConfig)) {
+      env[key] = value;
+    }
+  }
+  Object.assign(env, merged);
+  newSettings.env = env;
+
+  validateAndWriteJSON(filePath, newSettings);
 
   const filledKeys = Object.keys(merged).filter(k => config[k as keyof ModelConfig]?.length > 0);
   if (filledKeys.length < ANTHROPIC_KEYS.length) {
