@@ -15,8 +15,8 @@ const ANTHROPIC_KEYS: (keyof ModelConfig)[] = [
   "ANTHROPIC_MODEL",
   "ANTHROPIC_REASONING_MODEL",
   "ANTHROPIC_DEFAULT_OPUS_MODEL",
-  "ANTHROPIC_DEFAULT_HAIKU_MODEL",
   "ANTHROPIC_DEFAULT_SONNET_MODEL",
+  "ANTHROPIC_DEFAULT_HAIKU_MODEL",
 ];
 
 const KEY_LABELS: Record<keyof ModelConfig, string> = {
@@ -25,16 +25,16 @@ const KEY_LABELS: Record<keyof ModelConfig, string> = {
   ANTHROPIC_MODEL: "Model",
   ANTHROPIC_REASONING_MODEL: "Reasoning Model",
   ANTHROPIC_DEFAULT_OPUS_MODEL: "Default Opus Model",
-  ANTHROPIC_DEFAULT_HAIKU_MODEL: "Default Haiku Model",
   ANTHROPIC_DEFAULT_SONNET_MODEL: "Default Sonnet Model",
+  ANTHROPIC_DEFAULT_HAIKU_MODEL: "Default Haiku Model",
 };
 
 const OPTIONAL_KEYS: (keyof ModelConfig)[] = [
   "ANTHROPIC_MODEL",
   "ANTHROPIC_REASONING_MODEL",
   "ANTHROPIC_DEFAULT_OPUS_MODEL",
-  "ANTHROPIC_DEFAULT_HAIKU_MODEL",
   "ANTHROPIC_DEFAULT_SONNET_MODEL",
+  "ANTHROPIC_DEFAULT_HAIKU_MODEL",
 ];
 
 const REQUIRED_KEYS: (keyof ModelConfig)[] = [
@@ -64,8 +64,8 @@ export async function listCommand(): Promise<void> {
     console.log(chalk.dim(`     Model: ${config.ANTHROPIC_MODEL || "(未设置)"}`));
     console.log(chalk.dim(`     Reasoning Model: ${config.ANTHROPIC_REASONING_MODEL || "(未设置)"}`));
     console.log(chalk.dim(`     Default Opus Model: ${config.ANTHROPIC_DEFAULT_OPUS_MODEL || "(未设置)"}`));
-    console.log(chalk.dim(`     Default Haiku Model: ${config.ANTHROPIC_DEFAULT_HAIKU_MODEL || "(未设置)"}`));
     console.log(chalk.dim(`     Default Sonnet Model: ${config.ANTHROPIC_DEFAULT_SONNET_MODEL || "(未设置)"}`));
+    console.log(chalk.dim(`     Default Haiku Model: ${config.ANTHROPIC_DEFAULT_HAIKU_MODEL || "(未设置)"}`));
     console.log();
   }
 }

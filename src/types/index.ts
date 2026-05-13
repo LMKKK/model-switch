@@ -4,8 +4,8 @@ export interface ModelConfig {
   ANTHROPIC_MODEL: string;
   ANTHROPIC_REASONING_MODEL: string;
   ANTHROPIC_DEFAULT_OPUS_MODEL: string;
-  ANTHROPIC_DEFAULT_HAIKU_MODEL: string;
   ANTHROPIC_DEFAULT_SONNET_MODEL: string;
+  ANTHROPIC_DEFAULT_HAIKU_MODEL: string;
 }
 
 export interface ModelStore {
