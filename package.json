@@ -1,7 +1,7 @@
 {
   "name": "model-switch",
-  "version": "1.0.2",
-  "description": "CLI 工具，用于在不同 LLM 提供商之间切换 Claude Code 的模型配置",
+  "version": "1.1.0",
+  "description": "CLI 工具，用于在不同 LLM 提供商之间切换 Codex/Claude Code 的模型配置",
   "module": "src/index.ts",
   "type": "module",
   "license": "MIT",
@@ -20,7 +20,12 @@
   },
   "keywords": [
     "claude-code",
+    "codex-cli",
+    "codex",
     "claude",
+    "anthropic",
+    "openai",
+    "model-switch",
     "model",
     "switch",
     "llm",
