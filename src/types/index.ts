@@ -8,6 +8,19 @@ export interface ModelConfig {
   ANTHROPIC_DEFAULT_HAIKU_MODEL: string;
 }
 
-export interface ModelStore {
-  models: Record<string, ModelConfig>;
+export interface CodexConfig {
+  BASE_URL: string;
+  OPENAI_API_KEY: string;
+  CODEX_MODEL: string;
+  CODEX_MODEL_PROVIDER: string;
+  CODEX_REVIEW_MODEL: string;
+  CODEX_REASONING_EFFORT: string;
+  CODEX_VERBOSITY: string;
+  CODEX_CONTEXT_WINDOW: string;
 }
+
+export interface ModelStore<T = ModelConfig> {
+  models: Record<string, T>;
+}
+
+export type Provider = "claude" | "codex";

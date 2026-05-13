@@ -136,7 +136,7 @@ export async function activateConfig(name: string, config: ModelConfig): Promise
 
 export function matchCurrentConfig(): { name: string | null; config: Partial<ModelConfig> } {
   const currentSettings = readClaudeSettings();
-  const savedModels = readConfigs();
+  const savedModels = readConfigs<ModelConfig>("claude");
 
   // Build comparison subset: only compare keys present in currentSettings
   const settings = currentSettings as Record<string, string>;

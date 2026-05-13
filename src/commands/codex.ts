@@ -1,51 +1,61 @@
-import type { ModelConfig } from "../types";
+import type { CodexConfig } from "../types";
 import { readConfigs, writeConfigs } from "../store/config";
 import {
-  activateConfig,
-  handleMissingSettings,
-  matchCurrentConfig,
-  readClaudeSettings,
-} from "../store/claude-settings";
+  activateCodexConfig,
+  handleMissingCodexFiles,
+  matchCurrentCodexConfig,
+  readCodexConfigTOML,
+  readCodexAuthJSON,
+  removeCodexProvider,
+} from "../store/codex-settings";
 import chalk from "chalk";
 import prompts from "prompts";
 
-const ANTHROPIC_KEYS: (keyof ModelConfig)[] = [
-  "ANTHROPIC_BASE_URL",
-  "ANTHROPIC_AUTH_TOKEN",
-  "ANTHROPIC_MODEL",
-  "ANTHROPIC_REASONING_MODEL",
-  "ANTHROPIC_DEFAULT_OPUS_MODEL",
-  "ANTHROPIC_DEFAULT_SONNET_MODEL",
-  "ANTHROPIC_DEFAULT_HAIKU_MODEL",
+const CODEX_KEYS: (keyof CodexConfig)[] = [
+  "BASE_URL",
+  "OPENAI_API_KEY",
+  "CODEX_MODEL",
+  "CODEX_MODEL_PROVIDER",
+  "CODEX_REVIEW_MODEL",
+  "CODEX_REASONING_EFFORT",
+  "CODEX_VERBOSITY",
+  "CODEX_CONTEXT_WINDOW",
 ];
 
-const KEY_LABELS: Record<keyof ModelConfig, string> = {
-  ANTHROPIC_BASE_URL: "Base URL",
-  ANTHROPIC_AUTH_TOKEN: "Auth Token",
-  ANTHROPIC_MODEL: "Model",
-  ANTHROPIC_REASONING_MODEL: "Reasoning Model",
-  ANTHROPIC_DEFAULT_OPUS_MODEL: "Default Opus Model",
-  ANTHROPIC_DEFAULT_SONNET_MODEL: "Default Sonnet Model",
-  ANTHROPIC_DEFAULT_HAIKU_MODEL: "Default Haiku Model",
+const KEY_LABELS: Record<keyof CodexConfig, string> = {
+  BASE_URL: "Base URL",
+  OPENAI_API_KEY: "API Key",
+  CODEX_MODEL: "Model",
+  CODEX_MODEL_PROVIDER: "Model Provider",
+  CODEX_REVIEW_MODEL: "Review Model",
+  CODEX_REASONING_EFFORT: "Reasoning Effort",
+  CODEX_VERBOSITY: "Verbosity",
+  CODEX_CONTEXT_WINDOW: "Context Window",
 };
 
-const OPTIONAL_KEYS: (keyof ModelConfig)[] = [
-  "ANTHROPIC_MODEL",
-  "ANTHROPIC_REASONING_MODEL",
-  "ANTHROPIC_DEFAULT_OPUS_MODEL",
-  "ANTHROPIC_DEFAULT_SONNET_MODEL",
-  "ANTHROPIC_DEFAULT_HAIKU_MODEL",
+const REQUIRED_KEYS: (keyof CodexConfig)[] = [
+  "BASE_URL",
 ];
 
-const REQUIRED_KEYS: (keyof ModelConfig)[] = [
-  "ANTHROPIC_BASE_URL",
-  "ANTHROPIC_AUTH_TOKEN",
+const OPTIONAL_KEYS: (keyof CodexConfig)[] = [
+  "OPENAI_API_KEY",
+  "CODEX_MODEL",
+  "CODEX_MODEL_PROVIDER",
+  "CODEX_REVIEW_MODEL",
+  "CODEX_REASONING_EFFORT",
+  "CODEX_VERBOSITY",
+  "CODEX_CONTEXT_WINDOW",
 ];
+
+function maskApiKey(key: string): string {
+  if (key.length <= 12) return key.substring(0, 4) + "****";
+  return key.substring(0, 8) + "..." + key.substring(key.length - 4);
+}
 
 // ---- list ----
 export async function listCommand(): Promise<void> {
-  const models = readConfigs<ModelConfig>("claude");
-  const current = matchCurrentConfig();
+  const models = readConfigs<CodexConfig>("codex");
+  const current = matchCurrentCodexConfig();
   const names = Object.keys(models);
 
   if (names.length === 0) {
@@ -60,21 +70,21 @@ export async function listCommand(): Promise<void> {
     const prefix = isActive ? chalk.green("  ●") : "   ";
     const displayName = isActive ? chalk.green.bold(name) : chalk.white(name);
     console.log(`${prefix} ${displayName}`);
-    console.log(chalk.dim(`     URL: ${config.ANTHROPIC_BASE_URL}`));
-    console.log(chalk.dim(`     Model: ${config.ANTHROPIC_MODEL || "(未设置)"}`));
-    console.log(chalk.dim(`     Reasoning Model: ${config.ANTHROPIC_REASONING_MODEL || "(未设置)"}`));
-    console.log(chalk.dim(`     Default Opus Model: ${config.ANTHROPIC_DEFAULT_OPUS_MODEL || "(未设置)"}`));
-    console.log(chalk.dim(`     Default Sonnet Model: ${config.ANTHROPIC_DEFAULT_SONNET_MODEL || "(未设置)"}`));
-    console.log(chalk.dim(`     Default Haiku Model: ${config.ANTHROPIC_DEFAULT_HAIKU_MODEL || "(未设置)"}`));
+    console.log(chalk.dim(`     URL: ${config.BASE_URL}`));
+    console.log(chalk.dim(`     API Key: ${config.OPENAI_API_KEY ? maskApiKey(config.OPENAI_API_KEY) : "(空)"}`));
+    console.log(chalk.dim(`     Model: ${config.CODEX_MODEL || "(未设置)"}`));
+    console.log(chalk.dim(`     Model Provider: ${config.CODEX_MODEL_PROVIDER || "(未设置)"}`));
+    console.log(chalk.dim(`     Review Model: ${config.CODEX_REVIEW_MODEL || "(未设置)"}`));
+    console.log(chalk.dim(`     Reasoning Effort: ${config.CODEX_REASONING_EFFORT || "(未设置)"}`));
+    console.log(chalk.dim(`     Verbosity: ${config.CODEX_VERBOSITY || "(未设置)"}`));
     console.log();
   }
 }
 
 // ---- add ----
 export async function addCommand(): Promise<void> {
-  const models = readConfigs<ModelConfig>("claude");
+  const models = readConfigs<CodexConfig>("codex");
 
-  // Config name
   const { name } = await prompts({
     type: "text",
     name: "name",
@@ -86,7 +96,6 @@ export async function addCommand(): Promise<void> {
     return;
   }
 
-  // Check duplicate
   if (models[name]) {
     const { overwrite } = await prompts({
       type: "confirm",
@@ -100,9 +109,11 @@ export async function addCommand(): Promise<void> {
     }
   }
 
-  const config = {} as ModelConfig;
+  const config = {} as CodexConfig;
 
-  for (const key of ANTHROPIC_KEYS) {
+  for (const key of CODEX_KEYS) {
+    if (key === "CODEX_MODEL_PROVIDER") continue;
+
     const isRequired = REQUIRED_KEYS.includes(key);
     const { value } = await prompts({
       type: isRequired ? "text" : "text",
@@ -117,21 +128,22 @@ export async function addCommand(): Promise<void> {
     });
 
     if (value === undefined) {
-      // User cancelled (Ctrl+C)
       return;
     }
 
     config[key] = value.trim();
   }
 
+  config.CODEX_MODEL_PROVIDER = name;
+
   models[name] = config;
-  writeConfigs("claude", models);
+  writeConfigs("codex", models);
   console.log(chalk.green(`\n已保存配置 "${name}"`));
 }
 
 // ---- remove ----
 export async function removeCommand(): Promise<void> {
-  const models = readConfigs<ModelConfig>("claude");
+  const models = readConfigs<CodexConfig>("codex");
   const names = Object.keys(models);
 
   if (names.length === 0) {
@@ -163,13 +175,14 @@ export async function removeCommand(): Promise<void> {
   }
 
   delete models[target];
-  writeConfigs("claude", models);
+  writeConfigs("codex", models);
+  removeCodexProvider(target);
   console.log(chalk.green(`已删除配置 "${target}"`));
 }
 
 // ---- update ----
 export async function updateCommand(configName: string): Promise<void> {
-  const models = readConfigs<ModelConfig>("claude");
+  const models = readConfigs<CodexConfig>("codex");
 
   if (!models[configName]) {
     console.log(chalk.red(`配置 "${configName}" 不存在`));
@@ -185,30 +198,33 @@ export async function updateCommand(configName: string): Promise<void> {
   const config = { ...models[configName] };
   console.log(chalk.bold(`\n更新配置 "${configName}"（回车保留原值）:\n`));
 
-  for (const key of ANTHROPIC_KEYS) {
+  for (const key of CODEX_KEYS) {
     const currentValue = config[key] || "";
+    const displayValue = key === "OPENAI_API_KEY" && currentValue
+      ? maskApiKey(currentValue)
+      : currentValue;
     const { value } = await prompts({
       type: "text",
       name: "value",
-      message: `${KEY_LABELS[key]} [当前: ${currentValue || "(空)"}]`,
+      message: `${KEY_LABELS[key]} [当前: ${displayValue || "(空)"}]`,
       initial: currentValue,
     });
 
     if (value === undefined) {
-      return; // cancelled
+      return;
     }
 
     config[key] = value.trim();
   }
 
   models[configName] = config;
-  writeConfigs("claude", models);
+  writeConfigs("codex", models);
   console.log(chalk.green(`\n已更新配置 "${configName}"`));
 }
 
 // ---- use ----
 export async function useCommand(configName: string): Promise<void> {
-  const models = readConfigs<ModelConfig>("claude");
+  const models = readConfigs<CodexConfig>("codex");
 
   if (!models[configName]) {
     console.log(chalk.red(`配置 "${configName}" 不存在`));
@@ -223,28 +239,33 @@ export async function useCommand(configName: string): Promise<void> {
 
   const config = models[configName]!;
 
-  // Handle missing settings.json
-  const ok = await handleMissingSettings();
+  const ok = await handleMissingCodexFiles();
   if (!ok) return;
 
-  await activateConfig(configName, config);
+  await activateCodexConfig(configName, config);
 }
 
 // ---- current ----
 export async function currentCommand(): Promise<void> {
-  const claudeSettings = readClaudeSettings();
-  const settings = claudeSettings as Record<string, string>;
-  const keys = Object.keys(claudeSettings).filter(
+  const tomlSettings = readCodexConfigTOML();
+  const auth = readCodexAuthJSON();
+
+  const settings = { ...tomlSettings } as Record<string, string>;
+  if (auth.apiKey) {
+    settings.OPENAI_API_KEY = auth.apiKey;
+  }
+
+  const keys = Object.keys(settings).filter(
     k => settings[k] && settings[k]!.length > 0
   );
 
   if (keys.length === 0) {
-    console.log(chalk.yellow("未检测到 ~/.claude/settings.json 中的 ANTHROPIC_* 配置"));
+    console.log(chalk.yellow("未检测到 ~/.codex/config.toml 或 ~/.codex/auth.json 中的配置"));
     console.log(chalk.dim("请先执行 use 命令激活配置"));
     return;
   }
 
-  const current = matchCurrentConfig();
+  const current = matchCurrentCodexConfig();
 
   if (current.name) {
     console.log(chalk.green.bold(`\n当前激活配置: ${current.name}\n`));
@@ -252,11 +273,11 @@ export async function currentCommand(): Promise<void> {
     console.log(chalk.yellow("当前配置: unknown（未匹配到已保存配置）\n"));
   }
 
-  for (const key of ANTHROPIC_KEYS) {
+  for (const key of CODEX_KEYS) {
     const value = (current.config as Record<string, string>)[key];
     if (value) {
-      const displayValue = key === "ANTHROPIC_AUTH_TOKEN"
-        ? value.substring(0, 8) + "..." + value.substring(value.length - 4)
+      const displayValue = key === "OPENAI_API_KEY"
+        ? maskApiKey(value)
         : value;
       console.log(`  ${chalk.dim(KEY_LABELS[key] + ":")} ${displayValue}`);
     } else {

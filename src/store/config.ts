@@ -2,15 +2,15 @@ import { homedir } from "node:os";
 import { join, dirname } from "node:path";
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { validateAndWriteJSON } from "./json-validate";
-import type { ModelConfig, ModelStore } from "../types";
+import type { ModelStore, Provider } from "../types";
 import chalk from "chalk";
 
-export function getConfigFilePath(): string {
-  return join(homedir(), ".model-switch", "configs", "claude", "settings.json");
+export function getConfigFilePath(provider: Provider): string {
+  return join(homedir(), ".model-switch", "configs", provider, "settings.json");
 }
 
-export function readConfigs(): Record<string, ModelConfig> {
-  const filePath = getConfigFilePath();
+export function readConfigs<T = unknown>(provider: Provider): Record<string, T> {
+  const filePath = getConfigFilePath(provider);
 
   if (!existsSync(filePath)) {
     return {};
@@ -18,7 +18,7 @@ export function readConfigs(): Record<string, ModelConfig> {
 
   try {
     const raw = readFileSync(filePath, "utf-8");
-    const data: ModelStore = JSON.parse(raw);
+    const data: ModelStore<T> = JSON.parse(raw);
     if (!data || typeof data !== "object" || !data.models || typeof data.models !== "object") {
       console.warn(chalk.yellow("配置文件格式错误，将视为空配置"));
       return {};
@@ -33,8 +33,8 @@ export function readConfigs(): Record<string, ModelConfig> {
   }
 }
 
-export function writeConfigs(models: Record<string, ModelConfig>): void {
-  const filePath = getConfigFilePath();
+export function writeConfigs<T = unknown>(provider: Provider, models: Record<string, T>): void {
+  const filePath = getConfigFilePath(provider);
   const dir = dirname(filePath);
 
   if (!existsSync(dir)) {
@@ -42,6 +42,6 @@ export function writeConfigs(models: Record<string, ModelConfig>): void {
     console.log(chalk.dim(`创建目录: ${dir}`));
   }
 
-  const data: ModelStore = { models };
+  const data: ModelStore<T> = { models };
   validateAndWriteJSON(filePath, data);
 }
