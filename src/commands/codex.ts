@@ -1,5 +1,5 @@
 import type { CodexConfig } from "../types";
-import { readConfigs, writeConfigs } from "../store/config";
+import { readConfigs, readStore, writeStore } from "../store/config";
 import {
   activateCodexConfig,
   handleMissingCodexFiles,
@@ -8,6 +8,7 @@ import {
   readCodexAuthJSON,
   removeCodexProvider,
 } from "../store/codex-settings";
+import { computeDiffKeys, printDiffSection } from "./_shared";
 import chalk from "chalk";
 import prompts from "prompts";
 
@@ -54,9 +55,13 @@ function maskApiKey(key: string): string {
 
 // ---- list ----
 export async function listCommand(): Promise<void> {
-  const models = readConfigs<CodexConfig>("codex");
+  const { models, meta } = readStore<CodexConfig>("codex");
   const current = matchCurrentCodexConfig();
-  const names = Object.keys(models);
+  const names = Object.keys(models).sort((a, b) => {
+    const ta = meta[a]?.addedAt ?? "";
+    const tb = meta[b]?.addedAt ?? "";
+    return ta.localeCompare(tb);
+  });
 
   if (names.length === 0) {
     console.log(chalk.yellow("暂无保存的配置"));
@@ -83,7 +88,7 @@ export async function listCommand(): Promise<void> {
 
 // ---- add ----
 export async function addCommand(): Promise<void> {
-  const models = readConfigs<CodexConfig>("codex");
+  const { models, meta } = readStore<CodexConfig>("codex");
 
   const { name } = await prompts({
     type: "text",
@@ -137,13 +142,19 @@ export async function addCommand(): Promise<void> {
   config.CODEX_MODEL_PROVIDER = name;
 
   models[name] = config;
-  writeConfigs("codex", models);
+  const now = new Date().toISOString();
+  const existing = meta[name];
+  meta[name] = {
+    addedAt: existing?.addedAt ?? now,
+    updatedAt: now,
+  };
+  writeStore<CodexConfig>("codex", { models, meta });
   console.log(chalk.green(`\n已保存配置 "${name}"`));
 }
 
 // ---- remove ----
 export async function removeCommand(): Promise<void> {
-  const models = readConfigs<CodexConfig>("codex");
+  const { models, meta } = readStore<CodexConfig>("codex");
   const names = Object.keys(models);
 
   if (names.length === 0) {
@@ -175,14 +186,15 @@ export async function removeCommand(): Promise<void> {
   }
 
   delete models[target];
-  writeConfigs("codex", models);
+  delete meta[target];
+  writeStore<CodexConfig>("codex", { models, meta });
   removeCodexProvider(target);
   console.log(chalk.green(`已删除配置 "${target}"`));
 }
 
 // ---- update ----
 export async function updateCommand(configName: string): Promise<void> {
-  const models = readConfigs<CodexConfig>("codex");
+  const { models, meta } = readStore<CodexConfig>("codex");
 
   if (!models[configName]) {
     console.log(chalk.red(`配置 "${configName}" 不存在`));
@@ -218,7 +230,13 @@ export async function updateCommand(configName: string): Promise<void> {
   }
 
   models[configName] = config;
-  writeConfigs("codex", models);
+  const now = new Date().toISOString();
+  const existing = meta[configName];
+  meta[configName] = {
+    addedAt: existing?.addedAt ?? now,
+    updatedAt: now,
+  };
+  writeStore<CodexConfig>("codex", { models, meta });
   console.log(chalk.green(`\n已更新配置 "${configName}"`));
 }
 
@@ -246,6 +264,40 @@ export async function useCommand(configName: string): Promise<void> {
 }
 
 // ---- current ----
+function formatCodexValue(key: keyof CodexConfig, value: string): string {
+  if (key === "OPENAI_API_KEY") return maskApiKey(value);
+  return value;
+}
+
+function fuzzyMatchCodex(
+  active: Partial<Record<keyof CodexConfig, string>>,
+  saved: Record<string, CodexConfig>,
+): string | null {
+  const url = active.BASE_URL;
+  const key = active.OPENAI_API_KEY;
+  if (!url || !key) return null;
+
+  const candidates = Object.entries(saved).filter(
+    ([, cfg]) => cfg.BASE_URL === url && cfg.OPENAI_API_KEY === key,
+  );
+  if (candidates.length === 0) return null;
+  if (candidates.length === 1) return candidates[0]![0];
+
+  const scored = candidates.map(([name, cfg]) => {
+    let score = 0;
+    for (const k of CODEX_KEYS) {
+      if (cfg[k] === active[k]) {
+        score++;
+      }
+    }
+    return { name, score };
+  });
+  scored.sort((a, b) => b.score - a.score);
+  const top = scored[0]!.score;
+  const tied = scored.filter(s => s.score === top);
+  return tied.length === 1 ? tied[0]!.name : null;
+}
+
 export async function currentCommand(): Promise<void> {
   const tomlSettings = readCodexConfigTOML();
   const auth = readCodexAuthJSON();
@@ -266,23 +318,62 @@ export async function currentCommand(): Promise<void> {
   }
 
   const current = matchCurrentCodexConfig();
+  const activeValues = current.config as Partial<Record<keyof CodexConfig, string>>;
+  const savedConfigs = readConfigs<CodexConfig>("codex");
 
-  if (current.name) {
-    console.log(chalk.green.bold(`\n当前激活配置: ${current.name}\n`));
-  } else {
-    console.log(chalk.yellow("当前配置: unknown（未匹配到已保存配置）\n"));
+  let resolvedName: string | null = current.name;
+  let isFuzzy = false;
+  if (!resolvedName) {
+    resolvedName = fuzzyMatchCodex(activeValues, savedConfigs);
+    isFuzzy = resolvedName !== null;
   }
 
-  for (const key of CODEX_KEYS) {
-    const value = (current.config as Record<string, string>)[key];
-    if (value) {
-      const displayValue = key === "OPENAI_API_KEY"
-        ? maskApiKey(value)
-        : value;
-      console.log(`  ${chalk.dim(KEY_LABELS[key] + ":")} ${displayValue}`);
-    } else {
-      console.log(`  ${chalk.dim(KEY_LABELS[key] + ":")} ${chalk.dim("(未设置)")}`);
-    }
-  }
   console.log();
+  if (resolvedName) {
+    const saved = savedConfigs[resolvedName] as Partial<Record<keyof CodexConfig, string>> | undefined;
+
+    if (isFuzzy) {
+      console.log(chalk.green.bold(`当前激活配置: ${resolvedName}`) + chalk.dim(" (按 BASE_URL + OPENAI_API_KEY 指纹识别，字段有差异)"));
+    } else {
+      console.log(chalk.green.bold(`当前激活配置: ${resolvedName}`));
+    }
+    console.log();
+
+    const diffKeys = saved
+      ? computeDiffKeys<keyof CodexConfig>(CODEX_KEYS, saved, activeValues)
+      : new Set<keyof CodexConfig>();
+
+    if (saved) {
+      printDiffSection<keyof CodexConfig>(
+        saved,
+        CODEX_KEYS,
+        KEY_LABELS,
+        diffKeys,
+        formatCodexValue,
+      );
+    } else {
+      console.log(chalk.yellow("仓库保存版本已不存在(可能被删除)"));
+      console.log();
+    }
+
+    console.log(chalk.green.bold("目标文件实际生效值(~/.codex/config.toml + ~/.codex/auth.json)"));
+    printDiffSection<keyof CodexConfig>(
+      activeValues,
+      CODEX_KEYS,
+      KEY_LABELS,
+      diffKeys,
+      formatCodexValue,
+    );
+  } else {
+    console.log(chalk.yellow("当前配置: unknown（未匹配到已保存配置）"));
+    console.log();
+    console.log(chalk.green.bold("目标文件实际生效值(~/.codex/config.toml + ~/.codex/auth.json)"));
+    printDiffSection<keyof CodexConfig>(
+      activeValues,
+      CODEX_KEYS,
+      KEY_LABELS,
+      new Set<keyof CodexConfig>(),
+      formatCodexValue,
+    );
+  }
 }

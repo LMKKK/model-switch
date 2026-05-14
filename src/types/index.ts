@@ -19,8 +19,14 @@ export interface CodexConfig {
   CODEX_CONTEXT_WINDOW: string;
 }
 
+export interface ModelStoreMeta {
+  addedAt: string;
+  updatedAt: string;
+}
+
 export interface ModelStore<T = ModelConfig> {
   models: Record<string, T>;
+  meta?: Record<string, ModelStoreMeta>;
 }
 
 export type Provider = "claude" | "codex";

@@ -1,11 +1,12 @@
 import type { ModelConfig } from "../types";
-import { readConfigs, writeConfigs } from "../store/config";
+import { readConfigs, readStore, writeStore } from "../store/config";
 import {
   activateConfig,
   handleMissingSettings,
   matchCurrentConfig,
   readClaudeSettings,
 } from "../store/claude-settings";
+import { computeDiffKeys, printDiffSection } from "./_shared";
 import chalk from "chalk";
 import prompts from "prompts";
 
@@ -44,9 +45,13 @@ const REQUIRED_KEYS: (keyof ModelConfig)[] = [
 
 // ---- list ----
 export async function listCommand(): Promise<void> {
-  const models = readConfigs<ModelConfig>("claude");
+  const { models, meta } = readStore<ModelConfig>("claude");
   const current = matchCurrentConfig();
-  const names = Object.keys(models);
+  const names = Object.keys(models).sort((a, b) => {
+    const ta = meta[a]?.addedAt ?? "";
+    const tb = meta[b]?.addedAt ?? "";
+    return ta.localeCompare(tb);
+  });
 
   if (names.length === 0) {
     console.log(chalk.yellow("暂无保存的配置"));
@@ -72,7 +77,7 @@ export async function listCommand(): Promise<void> {
 
 // ---- add ----
 export async function addCommand(): Promise<void> {
-  const models = readConfigs<ModelConfig>("claude");
+  const { models, meta } = readStore<ModelConfig>("claude");
 
   // Config name
   const { name } = await prompts({
@@ -125,13 +130,19 @@ export async function addCommand(): Promise<void> {
   }
 
   models[name] = config;
-  writeConfigs("claude", models);
+  const now = new Date().toISOString();
+  const existing = meta[name];
+  meta[name] = {
+    addedAt: existing?.addedAt ?? now,
+    updatedAt: now,
+  };
+  writeStore<ModelConfig>("claude", { models, meta });
   console.log(chalk.green(`\n已保存配置 "${name}"`));
 }
 
 // ---- remove ----
 export async function removeCommand(): Promise<void> {
-  const models = readConfigs<ModelConfig>("claude");
+  const { models, meta } = readStore<ModelConfig>("claude");
   const names = Object.keys(models);
 
   if (names.length === 0) {
@@ -163,13 +174,14 @@ export async function removeCommand(): Promise<void> {
   }
 
   delete models[target];
-  writeConfigs("claude", models);
+  delete meta[target];
+  writeStore<ModelConfig>("claude", { models, meta });
   console.log(chalk.green(`已删除配置 "${target}"`));
 }
 
 // ---- update ----
 export async function updateCommand(configName: string): Promise<void> {
-  const models = readConfigs<ModelConfig>("claude");
+  const { models, meta } = readStore<ModelConfig>("claude");
 
   if (!models[configName]) {
     console.log(chalk.red(`配置 "${configName}" 不存在`));
@@ -202,7 +214,13 @@ export async function updateCommand(configName: string): Promise<void> {
   }
 
   models[configName] = config;
-  writeConfigs("claude", models);
+  const now = new Date().toISOString();
+  const existing = meta[configName];
+  meta[configName] = {
+    addedAt: existing?.addedAt ?? now,
+    updatedAt: now,
+  };
+  writeStore<ModelConfig>("claude", { models, meta });
   console.log(chalk.green(`\n已更新配置 "${configName}"`));
 }
 
@@ -231,6 +249,43 @@ export async function useCommand(configName: string): Promise<void> {
 }
 
 // ---- current ----
+function formatAnthropicValue(key: keyof ModelConfig, value: string): string {
+  if (key === "ANTHROPIC_AUTH_TOKEN") {
+    if (value.length <= 12) return value.substring(0, 4) + "****";
+    return value.substring(0, 8) + "..." + value.substring(value.length - 4);
+  }
+  return value;
+}
+
+function fuzzyMatchByFingerprint(
+  active: Partial<Record<keyof ModelConfig, string>>,
+  saved: Record<string, ModelConfig>,
+): string | null {
+  const url = active.ANTHROPIC_BASE_URL;
+  const token = active.ANTHROPIC_AUTH_TOKEN;
+  if (!url || !token) return null;
+
+  const candidates = Object.entries(saved).filter(
+    ([, cfg]) => cfg.ANTHROPIC_BASE_URL === url && cfg.ANTHROPIC_AUTH_TOKEN === token,
+  );
+  if (candidates.length === 0) return null;
+  if (candidates.length === 1) return candidates[0]![0];
+
+  const scored = candidates.map(([name, cfg]) => {
+    let score = 0;
+    for (const key of ANTHROPIC_KEYS) {
+      if (cfg[key] === active[key]) {
+        score++;
+      }
+    }
+    return { name, score };
+  });
+  scored.sort((a, b) => b.score - a.score);
+  const top = scored[0]!.score;
+  const tied = scored.filter(s => s.score === top);
+  return tied.length === 1 ? tied[0]!.name : null;
+}
+
 export async function currentCommand(): Promise<void> {
   const claudeSettings = readClaudeSettings();
   const settings = claudeSettings as Record<string, string>;
@@ -245,23 +300,62 @@ export async function currentCommand(): Promise<void> {
   }
 
   const current = matchCurrentConfig();
+  const activeValues = current.config as Partial<Record<keyof ModelConfig, string>>;
+  const savedConfigs = readConfigs<ModelConfig>("claude");
 
-  if (current.name) {
-    console.log(chalk.green.bold(`\n当前激活配置: ${current.name}\n`));
-  } else {
-    console.log(chalk.yellow("当前配置: unknown（未匹配到已保存配置）\n"));
+  let resolvedName: string | null = current.name;
+  let isFuzzy = false;
+  if (!resolvedName) {
+    resolvedName = fuzzyMatchByFingerprint(activeValues, savedConfigs);
+    isFuzzy = resolvedName !== null;
   }
 
-  for (const key of ANTHROPIC_KEYS) {
-    const value = (current.config as Record<string, string>)[key];
-    if (value) {
-      const displayValue = key === "ANTHROPIC_AUTH_TOKEN"
-        ? value.substring(0, 8) + "..." + value.substring(value.length - 4)
-        : value;
-      console.log(`  ${chalk.dim(KEY_LABELS[key] + ":")} ${displayValue}`);
-    } else {
-      console.log(`  ${chalk.dim(KEY_LABELS[key] + ":")} ${chalk.dim("(未设置)")}`);
-    }
-  }
   console.log();
+  if (resolvedName) {
+    const saved = savedConfigs[resolvedName] as Partial<Record<keyof ModelConfig, string>> | undefined;
+
+    if (isFuzzy) {
+      console.log(chalk.green.bold(`当前激活配置: ${resolvedName}`) + chalk.dim(" (按 BASE_URL + AUTH_TOKEN 指纹识别，字段有差异)"));
+    } else {
+      console.log(chalk.green.bold(`当前激活配置: ${resolvedName}`));
+    }
+    console.log();
+
+    const diffKeys = saved
+      ? computeDiffKeys<keyof ModelConfig>(ANTHROPIC_KEYS, saved, activeValues)
+      : new Set<keyof ModelConfig>();
+
+    if (saved) {
+      printDiffSection<keyof ModelConfig>(
+        saved,
+        ANTHROPIC_KEYS,
+        KEY_LABELS,
+        diffKeys,
+        formatAnthropicValue,
+      );
+    } else {
+      console.log(chalk.yellow("仓库保存版本已不存在(可能被删除)"));
+      console.log();
+    }
+
+    console.log(chalk.green.bold("目标文件实际生效值(~/.claude/settings.json)"));
+    printDiffSection<keyof ModelConfig>(
+      activeValues,
+      ANTHROPIC_KEYS,
+      KEY_LABELS,
+      diffKeys,
+      formatAnthropicValue,
+    );
+  } else {
+    console.log(chalk.yellow("当前配置: unknown（未匹配到已保存配置）"));
+    console.log();
+    console.log(chalk.green.bold("目标文件实际生效值(~/.claude/settings.json)"));
+    printDiffSection<keyof ModelConfig>(
+      activeValues,
+      ANTHROPIC_KEYS,
+      KEY_LABELS,
+      new Set<keyof ModelConfig>(),
+      formatAnthropicValue,
+    );
+  }
 }
