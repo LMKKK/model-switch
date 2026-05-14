@@ -17,6 +17,42 @@ const ANTHROPIC_KEYS: (keyof ModelConfig)[] = [
   "ANTHROPIC_DEFAULT_HAIKU_MODEL",
 ];
 
+const KEY_LABELS: Record<keyof ModelConfig, string> = {
+  ANTHROPIC_BASE_URL: "Base URL",
+  ANTHROPIC_AUTH_TOKEN: "Auth Token",
+  ANTHROPIC_MODEL: "Model",
+  ANTHROPIC_REASONING_MODEL: "Reasoning Model",
+  ANTHROPIC_DEFAULT_OPUS_MODEL: "Default Opus Model",
+  ANTHROPIC_DEFAULT_SONNET_MODEL: "Default Sonnet Model",
+  ANTHROPIC_DEFAULT_HAIKU_MODEL: "Default Haiku Model",
+};
+
+function maskValue(key: keyof ModelConfig, value: string): string {
+  if (key === "ANTHROPIC_AUTH_TOKEN") {
+    if (value.length <= 12) return value.substring(0, 4) + "****";
+    return value.substring(0, 8) + "..." + value.substring(value.length - 4);
+  }
+  if (value.length > 60) return value.substring(0, 60) + "...";
+  return value;
+}
+
+async function promptKeepOrRemove(key: keyof ModelConfig, currentValue: string): Promise<boolean> {
+  console.log("");
+  const { action } = await prompts({
+    type: "select",
+    name: "action",
+    message: `${KEY_LABELS[key]} 在目标配置中为空，当前值: ${maskValue(key, currentValue)}`,
+    choices: [
+      { title: "保留当前值", value: "keep" },
+      { title: "移除此配置项", value: "remove" },
+    ],
+  });
+  if (action === undefined) {
+    throw new Error("CANCELLED");
+  }
+  return action === "keep";
+}
+
 export function getClaudeSettingsPath(): string {
   return join(homedir(), ".claude", "settings.json");
 }
@@ -74,6 +110,18 @@ export async function handleMissingSettings(): Promise<boolean> {
 }
 
 export async function activateConfig(name: string, config: ModelConfig): Promise<boolean> {
+  try {
+    return await activateConfigImpl(name, config);
+  } catch (e) {
+    if (e instanceof Error && e.message === "CANCELLED") {
+      console.log(chalk.dim("已取消"));
+      return false;
+    }
+    throw e;
+  }
+}
+
+async function activateConfigImpl(name: string, config: ModelConfig): Promise<boolean> {
   const filePath = getClaudeSettingsPath();
 
   // Read existing settings
@@ -92,12 +140,15 @@ export async function activateConfig(name: string, config: ModelConfig): Promise
   const existingEnv = (existing.env as Record<string, unknown>) ?? {};
   for (const key of ANTHROPIC_KEYS) {
     if (!merged[key] || merged[key].length === 0) {
-      // Try to fill from existing settings
-      if (typeof existingEnv[key] === "string" && (existingEnv[key] as string).length > 0) {
-        merged[key] = existingEnv[key] as string;
-        console.log(chalk.dim(`${key} 未设置，使用当前值: ${(existingEnv[key] as string).substring(0, 40)}...`));
+      const existingValue = existingEnv[key];
+      if (typeof existingValue === "string" && existingValue.length > 0) {
+        const keep = await promptKeepOrRemove(key, existingValue);
+        if (keep) {
+          merged[key] = existingValue;
+        } else {
+          delete (merged as Record<string, string | undefined>)[key];
+        }
       } else {
-        // Don't write empty values
         delete (merged as Record<string, string | undefined>)[key];
         console.log(chalk.dim(`${key} 未设置且当前无值，跳过`));
       }
@@ -124,13 +175,7 @@ export async function activateConfig(name: string, config: ModelConfig): Promise
 
   validateAndWriteJSON(filePath, newSettings);
 
-  const filledKeys = Object.keys(merged).filter(k => config[k as keyof ModelConfig]?.length > 0);
-  if (filledKeys.length < ANTHROPIC_KEYS.length) {
-    console.log(chalk.cyan(`已激活配置 "${name}"，其中 ${ANTHROPIC_KEYS.length - filledKeys.length} 项使用回填值或保留原值`));
-  } else {
-    console.log(chalk.green(`已激活配置 "${name}"`));
-  }
-
+  console.log(chalk.green(`已激活配置 "${name}"`));
   return true;
 }
 
