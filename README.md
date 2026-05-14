@@ -5,8 +5,11 @@
 > 为什么不用 cc-switch?
 >
 > - 喜欢用命令行
-> - 只想切个模型，不需要额外复杂的功能（我只是想切模型，别动我其他配置项）
-> - cc-switch 有个恶心的点：当 cc-switch 处于模型配置的编辑页面时会监听配置文件的改动，此时在 Claude Code 中更新配置（例如安装插件/skills 等）是无效的，会强制被 cc-switch 覆盖为旧配置
+> - 我只是想切模型，别动我其他配置项, 不需要繁琐臃肿的操作
+> - cc-switch非常难用且繁琐：
+>   - 每次更改模型配置时需要反复勾选"写入通用配置",有时候忘记勾选，就会导致本地配置文件被覆盖,多了或漏了很多配置项,而且还不能立即发现此问题,只有用到某个skill或plugin的时候才发现配置文件错了
+>   - 在claude中自动安装了skills,plugin后,必须回到cc-switch的通用配置编辑页面手动"提取通用配置",否则你新增的配置项无法被cc-switch感知到,在切换模型时配置文件又被强制覆盖成旧版本了,恶心; 而且提取通用配置还经常提取不到
+>   - 当cc-switch停留在编辑配置页面时,你无法手动更改claude配置文件,一回到cc-switch的页面就又强制覆盖回旧的配置
 
 ## 安装
 
@@ -36,25 +39,25 @@ ms <provider> <command> [options]
 
 ### Claude Code
 
-| 命令                       | 说明                                         |
-| -------------------------- | -------------------------------------------- |
-| `ms claude list`           | 列出所有已保存的配置，标记当前激活项         |
-| `ms claude add`            | 交互式新增模型配置                           |
-| `ms claude remove`         | 交互式移除已保存的配置                       |
-| `ms claude update <name>`  | 逐项修改已有配置值                           |
-| `ms claude use <name>`     | 激活指定配置，写入 `~/.claude/settings.json` |
-| `ms claude current`        | 显示当前激活的配置名称及详情                 |
+| 命令                      | 说明                                         |
+| ------------------------- | -------------------------------------------- |
+| `ms claude list`          | 列出所有已保存的配置，标记当前激活项         |
+| `ms claude add`           | 交互式新增模型配置                           |
+| `ms claude remove`        | 交互式移除已保存的配置                       |
+| `ms claude update <name>` | 逐项修改已有配置值                           |
+| `ms claude use <name>`    | 激活指定配置，写入 `~/.claude/settings.json` |
+| `ms claude current`       | 显示当前激活的配置名称及详情                 |
 
 ### Codex CLI
 
-| 命令                       | 说明                                              |
-| -------------------------- | ------------------------------------------------- |
-| `ms codex list`            | 列出所有已保存的配置，标记当前激活项              |
-| `ms codex add`             | 交互式新增模型配置                                |
-| `ms codex remove`          | 交互式移除已保存的配置                            |
-| `ms codex update <name>`   | 逐项修改已有配置值                                |
-| `ms codex use <name>`      | 激活指定配置，写入 `~/.codex/config.toml` 和 `~/.codex/auth.json` |
-| `ms codex current`         | 显示当前激活的配置名称及详情                      |
+| 命令                     | 说明                                                              |
+| ------------------------ | ----------------------------------------------------------------- |
+| `ms codex list`          | 列出所有已保存的配置，标记当前激活项                              |
+| `ms codex add`           | 交互式新增模型配置                                                |
+| `ms codex remove`        | 交互式移除已保存的配置                                            |
+| `ms codex update <name>` | 逐项修改已有配置值                                                |
+| `ms codex use <name>`    | 激活指定配置，写入 `~/.codex/config.toml` 和 `~/.codex/auth.json` |
+| `ms codex current`       | 显示当前激活的配置名称及详情                                      |
 
 ### 示例
 
@@ -104,15 +107,15 @@ ms codex current
 - 激活配置时写入 `~/.claude/settings.json`，仅修改 `ANTHROPIC_*` 字段，保留其他设置不变
 - 配置包含 7 个字段：
 
-| 字段                            | 必填 |
-| ------------------------------- | ---- |
-| `ANTHROPIC_BASE_URL`            | 是   |
-| `ANTHROPIC_AUTH_TOKEN`          | 是   |
-| `ANTHROPIC_MODEL`               | 否   |
-| `ANTHROPIC_REASONING_MODEL`     | 否   |
-| `ANTHROPIC_DEFAULT_OPUS_MODEL`  | 否   |
-| `ANTHROPIC_DEFAULT_HAIKU_MODEL` | 否   |
-| `ANTHROPIC_DEFAULT_SONNET_MODEL`| 否   |
+| 字段                             | 必填 |
+| -------------------------------- | ---- |
+| `ANTHROPIC_BASE_URL`             | 是   |
+| `ANTHROPIC_AUTH_TOKEN`           | 是   |
+| `ANTHROPIC_MODEL`                | 否   |
+| `ANTHROPIC_REASONING_MODEL`      | 否   |
+| `ANTHROPIC_DEFAULT_OPUS_MODEL`   | 否   |
+| `ANTHROPIC_DEFAULT_HAIKU_MODEL`  | 否   |
+| `ANTHROPIC_DEFAULT_SONNET_MODEL` | 否   |
 
 ### Codex CLI
 
@@ -121,16 +124,16 @@ ms codex current
 - 写入时保留 `config.toml` 和 `auth.json` 中的其他字段不变
 - 配置包含 8 个字段：
 
-| 字段                     | 说明             | 必填 |
-| ------------------------ | ---------------- | ---- |
-| `BASE_URL`               | API Base URL     | 是   |
-| `OPENAI_API_KEY`         | API Key          | 否   |
-| `CODEX_MODEL`            | 模型名称         | 否   |
-| `CODEX_MODEL_PROVIDER`   | 模型提供商标识   | 否   |
-| `CODEX_REVIEW_MODEL`     | Review 模型      | 否   |
-| `CODEX_REASONING_EFFORT` | 推理强度         | 否   |
-| `CODEX_VERBOSITY`        | 输出详细程度     | 否   |
-| `CODEX_CONTEXT_WINDOW`   | 上下文窗口大小   | 否   |
+| 字段                     | 说明           | 必填 |
+| ------------------------ | -------------- | ---- |
+| `BASE_URL`               | API Base URL   | 是   |
+| `OPENAI_API_KEY`         | API Key        | 否   |
+| `CODEX_MODEL`            | 模型名称       | 否   |
+| `CODEX_MODEL_PROVIDER`   | 模型提供商标识 | 否   |
+| `CODEX_REVIEW_MODEL`     | Review 模型    | 否   |
+| `CODEX_REASONING_EFFORT` | 推理强度       | 否   |
+| `CODEX_VERBOSITY`        | 输出详细程度   | 否   |
+| `CODEX_CONTEXT_WINDOW`   | 上下文窗口大小 | 否   |
 
 ## 开发
 
