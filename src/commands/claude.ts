@@ -202,7 +202,7 @@ export async function updateCommand(configName: string): Promise<void> {
     const { value } = await prompts({
       type: "text",
       name: "value",
-      message: `${KEY_LABELS[key]} [当前: ${currentValue || "(空)"}]`,
+      message: `${KEY_LABELS[key]}`,
       initial: currentValue,
     });
 
