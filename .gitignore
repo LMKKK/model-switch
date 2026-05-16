@@ -36,6 +36,7 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 
 # Claude Code local config
 .claude/
+openspec/
 
 # Editor swap files
 *.swp
