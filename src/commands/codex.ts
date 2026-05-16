@@ -53,6 +53,11 @@ function maskApiKey(key: string): string {
   return key.substring(0, 8) + "..." + key.substring(key.length - 4);
 }
 
+function formatCodexValue(key: keyof CodexConfig, value: string): string {
+  if (key === "OPENAI_API_KEY") return maskApiKey(value);
+  return value;
+}
+
 // ---- list ----
 export async function listCommand(): Promise<void> {
   const { models, meta } = readStore<CodexConfig>("codex");
@@ -208,13 +213,11 @@ export async function updateCommand(configName: string): Promise<void> {
   }
 
   const config = { ...models[configName] };
-  console.log(chalk.bold(`\n更新配置 "${configName}"（回车保留原值）:\n`));
+  console.log(chalk.bold(`\n更新配置 "${configName}":`));
+  console.log(chalk.cyan("按 Tab 可将当前值填充到输入框\n"));
 
   for (const key of CODEX_KEYS) {
     const currentValue = config[key] || "";
-    const displayValue = key === "OPENAI_API_KEY" && currentValue
-      ? maskApiKey(currentValue)
-      : currentValue;
     const { value } = await prompts({
       type: "text",
       name: "value",
@@ -227,6 +230,47 @@ export async function updateCommand(configName: string): Promise<void> {
     }
 
     config[key] = value.trim();
+  }
+
+  // Diff & confirm
+  const oldConfig = models[configName]!;
+  const diffKeys = computeDiffKeys<keyof CodexConfig>(CODEX_KEYS, oldConfig as Partial<Record<keyof CodexConfig, string>>, config);
+
+  if (diffKeys.size === 0) {
+    console.log(chalk.dim("\n配置未发生变更"));
+    return;
+  }
+
+  console.log(chalk.bold("\n变更预览:\n"));
+
+  console.log(chalk.dim("  修改前:"));
+  printDiffSection<keyof CodexConfig>(
+    oldConfig as Partial<Record<keyof CodexConfig, string>>,
+    CODEX_KEYS,
+    KEY_LABELS,
+    diffKeys,
+    formatCodexValue,
+  );
+
+  console.log(chalk.green("  修改后:"));
+  printDiffSection<keyof CodexConfig>(
+    config,
+    CODEX_KEYS,
+    KEY_LABELS,
+    diffKeys,
+    formatCodexValue,
+  );
+
+  const { confirm } = await prompts({
+    type: "confirm",
+    name: "confirm",
+    message: "确认保存以上变更？",
+    initial: true,
+  });
+
+  if (!confirm) {
+    console.log(chalk.dim("已取消"));
+    return;
   }
 
   models[configName] = config;
@@ -264,11 +308,6 @@ export async function useCommand(configName: string): Promise<void> {
 }
 
 // ---- current ----
-function formatCodexValue(key: keyof CodexConfig, value: string): string {
-  if (key === "OPENAI_API_KEY") return maskApiKey(value);
-  return value;
-}
-
 function fuzzyMatchCodex(
   active: Partial<Record<keyof CodexConfig, string>>,
   saved: Record<string, CodexConfig>,

@@ -43,6 +43,14 @@ const REQUIRED_KEYS: (keyof ModelConfig)[] = [
   "ANTHROPIC_AUTH_TOKEN",
 ];
 
+function formatAnthropicValue(key: keyof ModelConfig, value: string): string {
+  if (key === "ANTHROPIC_AUTH_TOKEN") {
+    if (value.length <= 12) return value.substring(0, 4) + "****";
+    return value.substring(0, 8) + "..." + value.substring(value.length - 4);
+  }
+  return value;
+}
+
 // ---- list ----
 export async function listCommand(): Promise<void> {
   const { models, meta } = readStore<ModelConfig>("claude");
@@ -195,7 +203,8 @@ export async function updateCommand(configName: string): Promise<void> {
   }
 
   const config = { ...models[configName] };
-  console.log(chalk.bold(`\n更新配置 "${configName}"（回车保留原值）:\n`));
+  console.log(chalk.bold(`\n更新配置 "${configName}":`));
+  console.log(chalk.cyan("按 Tab 可将当前值填充到输入框\n"));
 
   for (const key of ANTHROPIC_KEYS) {
     const currentValue = config[key] || "";
@@ -211,6 +220,47 @@ export async function updateCommand(configName: string): Promise<void> {
     }
 
     config[key] = value.trim();
+  }
+
+  // Diff & confirm
+  const oldConfig = models[configName]!;
+  const diffKeys = computeDiffKeys<keyof ModelConfig>(ANTHROPIC_KEYS, oldConfig as Partial<Record<keyof ModelConfig, string>>, config);
+
+  if (diffKeys.size === 0) {
+    console.log(chalk.dim("\n配置未发生变更"));
+    return;
+  }
+
+  console.log(chalk.bold("\n变更预览:\n"));
+
+  console.log(chalk.dim("  修改前:"));
+  printDiffSection<keyof ModelConfig>(
+    oldConfig as Partial<Record<keyof ModelConfig, string>>,
+    ANTHROPIC_KEYS,
+    KEY_LABELS,
+    diffKeys,
+    formatAnthropicValue,
+  );
+
+  console.log(chalk.green("  修改后:"));
+  printDiffSection<keyof ModelConfig>(
+    config,
+    ANTHROPIC_KEYS,
+    KEY_LABELS,
+    diffKeys,
+    formatAnthropicValue,
+  );
+
+  const { confirm } = await prompts({
+    type: "confirm",
+    name: "confirm",
+    message: "确认保存以上变更？",
+    initial: true,
+  });
+
+  if (!confirm) {
+    console.log(chalk.dim("已取消"));
+    return;
   }
 
   models[configName] = config;
@@ -249,14 +299,6 @@ export async function useCommand(configName: string): Promise<void> {
 }
 
 // ---- current ----
-function formatAnthropicValue(key: keyof ModelConfig, value: string): string {
-  if (key === "ANTHROPIC_AUTH_TOKEN") {
-    if (value.length <= 12) return value.substring(0, 4) + "****";
-    return value.substring(0, 8) + "..." + value.substring(value.length - 4);
-  }
-  return value;
-}
-
 function fuzzyMatchByFingerprint(
   active: Partial<Record<keyof ModelConfig, string>>,
   saved: Record<string, ModelConfig>,
