@@ -8,7 +8,8 @@ import {
 } from "../store/claude-settings";
 import { computeDiffKeys, printDiffSection } from "./_shared";
 import chalk from "chalk";
-import prompts from "prompts";
+import { input, confirm, select } from "@inquirer/prompts";
+import { prefillInput } from "../utils/prompt";
 
 const ANTHROPIC_KEYS: (keyof ModelConfig)[] = [
   "ANTHROPIC_BASE_URL",
@@ -88,25 +89,29 @@ export async function addCommand(): Promise<void> {
   const { models, meta } = readStore<ModelConfig>("claude");
 
   // Config name
-  const { name } = await prompts({
-    type: "text",
-    name: "name",
-    message: "配置名称",
-    validate: (v: string) => (v.trim().length > 0 ? true : "配置名称不能为空"),
-  });
-  if (!name) {
+  let name: string;
+  try {
+    name = await input({
+      message: "配置名称",
+      required: true,
+    });
+  } catch {
     console.log(chalk.dim("已取消"));
     return;
   }
 
   // Check duplicate
   if (models[name]) {
-    const { overwrite } = await prompts({
-      type: "confirm",
-      name: "overwrite",
-      message: `配置 "${name}" 已存在，是否覆盖？`,
-      initial: false,
-    });
+    let overwrite: boolean;
+    try {
+      overwrite = await confirm({
+        message: `配置 "${name}" 已存在，是否覆盖？`,
+        default: false,
+      });
+    } catch {
+      console.log(chalk.dim("已取消"));
+      return;
+    }
     if (!overwrite) {
       console.log(chalk.dim("已取消"));
       return;
@@ -117,23 +122,20 @@ export async function addCommand(): Promise<void> {
 
   for (const key of ANTHROPIC_KEYS) {
     const isRequired = REQUIRED_KEYS.includes(key);
-    const { value } = await prompts({
-      type: isRequired ? "text" : "text",
-      name: "value",
-      message: `${KEY_LABELS[key]}${isRequired ? "（必填）" : "（可选，回车跳过）"}`,
-      validate: (v: string) => {
-        if (isRequired && v.trim().length === 0) {
-          return "该字段为必填项";
-        }
-        return true;
-      },
-    });
-
-    if (value === undefined) {
-      // User cancelled (Ctrl+C)
+    let value: string;
+    try {
+      value = await input({
+        message: `${KEY_LABELS[key]}${isRequired ? "（必填）" : "（可选，回车跳过）"}`,
+        validate: (v: string) => {
+          if (isRequired && v.trim().length === 0) {
+            return "该字段为必填项";
+          }
+          return true;
+        },
+      });
+    } catch {
       return;
     }
-
     config[key] = value.trim();
   }
 
@@ -158,25 +160,29 @@ export async function removeCommand(): Promise<void> {
     return;
   }
 
-  const choices = names.map(n => ({ title: n, value: n }));
-  const { target } = await prompts({
-    type: "select",
-    name: "target",
-    message: "选择要删除的配置",
-    choices,
-  });
-  if (!target) {
+  const choices = names.map(n => ({ name: n, value: n }));
+  let target: string;
+  try {
+    target = await select({
+      message: "选择要删除的配置",
+      choices,
+    });
+  } catch {
     console.log(chalk.dim("已取消"));
     return;
   }
 
-  const { confirm } = await prompts({
-    type: "confirm",
-    name: "confirm",
-    message: `确认删除配置 "${target}"？`,
-    initial: false,
-  });
-  if (!confirm) {
+  let confirmed: boolean;
+  try {
+    confirmed = await confirm({
+      message: `确认删除配置 "${target}"？`,
+      default: false,
+    });
+  } catch {
+    console.log(chalk.dim("已取消"));
+    return;
+  }
+  if (!confirmed) {
     console.log(chalk.dim("已取消"));
     return;
   }
@@ -204,21 +210,19 @@ export async function updateCommand(configName: string): Promise<void> {
 
   const config = { ...models[configName] };
   console.log(chalk.bold(`\n更新配置 "${configName}":`));
-  console.log(chalk.cyan("按 Tab 可将当前值填充到输入框\n"));
+  console.log(chalk.cyan("当前值已填充到输入框，可直接编辑或清空\n"));
 
   for (const key of ANTHROPIC_KEYS) {
     const currentValue = config[key] || "";
-    const { value } = await prompts({
-      type: "text",
-      name: "value",
-      message: `${KEY_LABELS[key]}`,
-      initial: currentValue,
-    });
-
-    if (value === undefined) {
-      return; // cancelled
+    let value: string;
+    try {
+      value = await prefillInput({
+        message: `${KEY_LABELS[key]}`,
+        initial: currentValue,
+      });
+    } catch {
+      return;
     }
-
     config[key] = value.trim();
   }
 
@@ -251,14 +255,17 @@ export async function updateCommand(configName: string): Promise<void> {
     formatAnthropicValue,
   );
 
-  const { confirm } = await prompts({
-    type: "confirm",
-    name: "confirm",
-    message: "确认保存以上变更？",
-    initial: true,
-  });
-
-  if (!confirm) {
+  let confirmed: boolean;
+  try {
+    confirmed = await confirm({
+      message: "确认保存以上变更？",
+      default: true,
+    });
+  } catch {
+    console.log(chalk.dim("已取消"));
+    return;
+  }
+  if (!confirmed) {
     console.log(chalk.dim("已取消"));
     return;
   }

@@ -6,7 +6,7 @@ import type { CodexConfig } from "../types";
 import { readConfigs } from "./config";
 import { validateAndWriteJSON } from "./json-validate";
 import chalk from "chalk";
-import prompts from "prompts";
+import { confirm, select } from "@inquirer/prompts";
 
 const CODEX_KEYS: (keyof CodexConfig)[] = [
   "BASE_URL",
@@ -103,14 +103,18 @@ export async function handleMissingCodexFiles(): Promise<boolean> {
   }
 
   console.log(chalk.yellow("~/.codex/ 目录不存在"));
-  const { confirm } = await prompts({
-    type: "confirm",
-    name: "confirm",
-    message: "是否需要自动创建 ~/.codex/ 目录？",
-    initial: true,
-  });
+  let confirmed: boolean;
+  try {
+    confirmed = await confirm({
+      message: "是否需要自动创建 ~/.codex/ 目录？",
+      default: true,
+    });
+  } catch {
+    console.log(chalk.dim("已取消"));
+    return false;
+  }
 
-  if (!confirm) {
+  if (!confirmed) {
     console.log(chalk.yellow("请手动创建 ~/.codex/ 目录后重试"));
     return false;
   }
@@ -143,16 +147,16 @@ function maskValue(key: string, value: string): string {
 async function promptKeepOrRemove(key: string, currentValue: string): Promise<boolean> {
   const label = FIELD_LABELS[key] || key;
   console.log("");
-  const { action } = await prompts({
-    type: "select",
-    name: "action",
-    message: `${label} 在目标配置中为空，当前值: ${maskValue(key, currentValue)}`,
-    choices: [
-      { title: "保留当前值", value: "keep" },
-      { title: "移除此配置项", value: "remove" },
-    ],
-  });
-  if (action === undefined) {
+  let action: string;
+  try {
+    action = await select({
+      message: `${label} 在目标配置中为空，当前值: ${maskValue(key, currentValue)}`,
+      choices: [
+        { name: "保留当前值", value: "keep" },
+        { name: "移除此配置项", value: "remove" },
+      ],
+    });
+  } catch {
     throw new Error("CANCELLED");
   }
   return action === "keep";

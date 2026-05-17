@@ -5,7 +5,7 @@ import type { ModelConfig } from "../types";
 import { readConfigs } from "./config";
 import { validateAndWriteJSON } from "./json-validate";
 import chalk from "chalk";
-import prompts from "prompts";
+import { confirm, select } from "@inquirer/prompts";
 
 const ANTHROPIC_KEYS: (keyof ModelConfig)[] = [
   "ANTHROPIC_BASE_URL",
@@ -38,16 +38,16 @@ function maskValue(key: keyof ModelConfig, value: string): string {
 
 async function promptKeepOrRemove(key: keyof ModelConfig, currentValue: string): Promise<boolean> {
   console.log("");
-  const { action } = await prompts({
-    type: "select",
-    name: "action",
-    message: `${KEY_LABELS[key]} 在目标配置中为空，当前值: ${maskValue(key, currentValue)}`,
-    choices: [
-      { title: "保留当前值", value: "keep" },
-      { title: "移除此配置项", value: "remove" },
-    ],
-  });
-  if (action === undefined) {
+  let action: string;
+  try {
+    action = await select({
+      message: `${KEY_LABELS[key]} 在目标配置中为空，当前值: ${maskValue(key, currentValue)}`,
+      choices: [
+        { name: "保留当前值", value: "keep" },
+        { name: "移除此配置项", value: "remove" },
+      ],
+    });
+  } catch {
     throw new Error("CANCELLED");
   }
   return action === "keep";
@@ -88,14 +88,18 @@ export async function handleMissingSettings(): Promise<boolean> {
   }
 
   console.log(chalk.yellow("settings.json 不存在"));
-  const { confirm } = await prompts({
-    type: "confirm",
-    name: "confirm",
-    message: "是否需要自动创建 ~/.claude/settings.json？",
-    initial: true,
-  });
+  let confirmed: boolean;
+  try {
+    confirmed = await confirm({
+      message: "是否需要自动创建 ~/.claude/settings.json？",
+      default: true,
+    });
+  } catch {
+    console.log(chalk.dim("已取消"));
+    return false;
+  }
 
-  if (!confirm) {
+  if (!confirmed) {
     console.log(chalk.yellow("请手动创建 ~/.claude/settings.json 文件后重试"));
     return false;
   }
