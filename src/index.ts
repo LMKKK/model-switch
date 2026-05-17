@@ -50,16 +50,16 @@ claude
   });
 
 claude
-  .command("update <config-name>")
+  .command("update [config-name]")
   .description("更新已有模型配置")
-  .action(async (configName: string) => {
+  .action(async (configName?: string) => {
     await updateCommand(configName);
   });
 
 claude
-  .command("use <config-name>")
+  .command("use [config-name]")
   .description("激活指定配置")
-  .action(async (configName: string) => {
+  .action(async (configName?: string) => {
     await useCommand(configName);
   });
 
@@ -96,16 +96,16 @@ codex
   });
 
 codex
-  .command("update <config-name>")
+  .command("update [config-name]")
   .description("更新已有模型配置")
-  .action(async (configName: string) => {
+  .action(async (configName?: string) => {
     await updateCodex(configName);
   });
 
 codex
-  .command("use <config-name>")
+  .command("use [config-name]")
   .description("激活指定配置")
-  .action(async (configName: string) => {
+  .action(async (configName?: string) => {
     await useCodex(configName);
   });
 

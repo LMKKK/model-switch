@@ -8,8 +8,8 @@ import {
 } from "../store/claude-settings";
 import { computeDiffKeys, printDiffSection } from "./_shared";
 import chalk from "chalk";
-import { input, confirm, select } from "@inquirer/prompts";
-import { prefillInput } from "../utils/prompt";
+import { input, confirm } from "@inquirer/prompts";
+import { prefillInput, detailSelect } from "../utils/prompt";
 
 const ANTHROPIC_KEYS: (keyof ModelConfig)[] = [
   "ANTHROPIC_BASE_URL",
@@ -160,10 +160,22 @@ export async function removeCommand(): Promise<void> {
     return;
   }
 
-  const choices = names.map(n => ({ name: n, value: n }));
+  const choices = names.map((name) => ({
+    name,
+    value: name,
+    detail: () => {
+      const cfg = models[name]!;
+      const lines = ANTHROPIC_KEYS.map((key) => {
+        const val = cfg[key] || "";
+        const display = formatAnthropicValue(key, val) || "(未设置)";
+        return `   ${KEY_LABELS[key]}: ${display}`;
+      });
+      return lines.join("\n");
+    },
+  }));
   let target: string;
   try {
-    target = await select({
+    target = await detailSelect({
       message: "选择要删除的配置",
       choices,
     });
@@ -194,8 +206,42 @@ export async function removeCommand(): Promise<void> {
 }
 
 // ---- update ----
-export async function updateCommand(configName: string): Promise<void> {
+export async function updateCommand(configName?: string): Promise<void> {
   const { models, meta } = readStore<ModelConfig>("claude");
+
+  if (!configName) {
+    const names = Object.keys(models);
+    if (names.length === 0) {
+      console.log(chalk.yellow("暂无保存的配置，请先使用 add 命令添加"));
+      return;
+    }
+
+    const choices = names.map((name) => ({
+      name,
+      value: name,
+      detail: () => {
+        const cfg = models[name]!;
+        const lines = ANTHROPIC_KEYS.map((key) => {
+          const val = cfg[key] || "";
+          const display = formatAnthropicValue(key, val) || "(未设置)";
+          return `   ${KEY_LABELS[key]}: ${display}`;
+        });
+        return lines.join("\n");
+      },
+    }));
+
+    let selected: string;
+    try {
+      selected = await detailSelect({
+        message: "选择要更新的配置",
+        choices,
+      });
+    } catch {
+      console.log(chalk.dim("已取消"));
+      return;
+    }
+    configName = selected;
+  }
 
   if (!models[configName]) {
     console.log(chalk.red(`配置 "${configName}" 不存在`));
@@ -208,12 +254,13 @@ export async function updateCommand(configName: string): Promise<void> {
     return;
   }
 
-  const config = { ...models[configName] };
+  const source = models[configName]!;
+  const config = { ...source } as ModelConfig;
   console.log(chalk.bold(`\n更新配置 "${configName}":`));
   console.log(chalk.cyan("当前值已填充到输入框，可直接编辑或清空\n"));
 
   for (const key of ANTHROPIC_KEYS) {
-    const currentValue = config[key] || "";
+    const currentValue = source[key] || "";
     let value: string;
     try {
       value = await prefillInput({
@@ -282,8 +329,42 @@ export async function updateCommand(configName: string): Promise<void> {
 }
 
 // ---- use ----
-export async function useCommand(configName: string): Promise<void> {
+export async function useCommand(configName?: string): Promise<void> {
   const models = readConfigs<ModelConfig>("claude");
+
+  if (!configName) {
+    const names = Object.keys(models);
+    if (names.length === 0) {
+      console.log(chalk.yellow("暂无保存的配置，请先使用 add 命令添加"));
+      return;
+    }
+
+    const choices = names.map((name) => ({
+      name,
+      value: name,
+      detail: () => {
+        const cfg = models[name]!;
+        const lines = ANTHROPIC_KEYS.map((key) => {
+          const val = cfg[key] || "";
+          const display = formatAnthropicValue(key, val) || "(未设置)";
+          return `   ${KEY_LABELS[key]}: ${display}`;
+        });
+        return lines.join("\n");
+      },
+    }));
+
+    let selected: string;
+    try {
+      selected = await detailSelect({
+        message: "选择要激活的配置",
+        choices,
+      });
+    } catch {
+      console.log(chalk.dim("已取消"));
+      return;
+    }
+    configName = selected;
+  }
 
   if (!models[configName]) {
     console.log(chalk.red(`配置 "${configName}" 不存在`));
