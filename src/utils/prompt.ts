@@ -128,6 +128,6 @@ export const detailSelect = createPrompt<string, DetailSelectConfig>(
       detailSection = config.choices[cursor]!.detail!();
     }
 
-    return [`${prefix} ${msg} ${hints}\n${choiceLines.join("\n")}`, detailSection];
+    return [`${prefix} ${msg}\n${choiceLines.join("\n")}\n${hints}`, detailSection];
   },
 );
