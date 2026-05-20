@@ -41,7 +41,6 @@ const OPTIONAL_KEYS: (keyof ModelConfig)[] = [
 
 const REQUIRED_KEYS: (keyof ModelConfig)[] = [
   "ANTHROPIC_BASE_URL",
-  "ANTHROPIC_AUTH_TOKEN",
 ];
 
 function formatAnthropicValue(key: keyof ModelConfig, value: string): string {

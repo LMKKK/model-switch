@@ -5,7 +5,7 @@ import type { ModelConfig } from "../types";
 import { readConfigs } from "./config";
 import { validateAndWriteJSON } from "./json-validate";
 import chalk from "chalk";
-import { confirm, select } from "@inquirer/prompts";
+import { confirm, select, Separator } from "@inquirer/prompts";
 
 const ANTHROPIC_KEYS: (keyof ModelConfig)[] = [
   "ANTHROPIC_BASE_URL",
@@ -45,9 +45,19 @@ async function promptKeepOrRemove(key: keyof ModelConfig, currentValue: string):
       choices: [
         { name: "保留当前值", value: "keep" },
         { name: "移除此配置项", value: "remove" },
+        new Separator(),
+        { name: "取消操作", value: "cancel" },
       ],
+      theme: {
+        style: {
+          keysHelpTip: (keys: [key: string, action: string][]) =>
+            keys.map(([key, action]) => `${key} ${action}`).join(" • ") + " • ctrl+c cancel",
+        },
+      },
     });
-  } catch {
+    if (action === "cancel") throw new Error("CANCELLED");
+  } catch (e) {
+    if (e instanceof Error && e.message === "CANCELLED") throw e;
     throw new Error("CANCELLED");
   }
   return action === "keep";

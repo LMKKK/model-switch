@@ -6,7 +6,7 @@ import type { CodexConfig } from "../types";
 import { readConfigs } from "./config";
 import { validateAndWriteJSON } from "./json-validate";
 import chalk from "chalk";
-import { confirm, select } from "@inquirer/prompts";
+import { confirm, select, Separator } from "@inquirer/prompts";
 
 const CODEX_KEYS: (keyof CodexConfig)[] = [
   "BASE_URL",
@@ -89,7 +89,7 @@ export function readCodexAuthJSON(): { apiKey: string } {
   try {
     const raw = readFileSync(filePath, "utf-8");
     const data = JSON.parse(raw);
-    return { apiKey: typeof data.api_key === "string" ? data.api_key : "" };
+    return { apiKey: typeof data.OPENAI_API_KEY === "string" ? data.OPENAI_API_KEY : "" };
   } catch {
     return { apiKey: "" };
   }
@@ -154,9 +154,19 @@ async function promptKeepOrRemove(key: string, currentValue: string): Promise<bo
       choices: [
         { name: "保留当前值", value: "keep" },
         { name: "移除此配置项", value: "remove" },
+        new Separator(),
+        { name: "取消操作", value: "cancel" },
       ],
+      theme: {
+        style: {
+          keysHelpTip: (keys: [key: string, action: string][]) =>
+            keys.map(([key, action]) => `${key} ${action}`).join(" • ") + " • ctrl+c cancel",
+        },
+      },
     });
-  } catch {
+    if (action === "cancel") throw new Error("CANCELLED");
+  } catch (e) {
+    if (e instanceof Error && e.message === "CANCELLED") throw e;
     throw new Error("CANCELLED");
   }
   return action === "keep";
@@ -178,7 +188,7 @@ async function activateCodexConfigImpl(name: string, config: CodexConfig): Promi
   const configPath = getCodexConfigPath();
   const authPath = getCodexAuthPath();
 
-  // --- Write config.toml ---
+  // --- Phase 1: Read existing state ---
   let existingTOML: Record<string, unknown> = {};
   if (existsSync(configPath)) {
     try {
@@ -189,9 +199,19 @@ async function activateCodexConfigImpl(name: string, config: CodexConfig): Promi
     }
   }
 
+  let existingAuth: Record<string, unknown> = {};
+  if (existsSync(authPath)) {
+    try {
+      existingAuth = JSON.parse(readFileSync(authPath, "utf-8"));
+    } catch {
+      // overwrite
+    }
+  }
+
+  // --- Phase 2: Collect all decisions (prompts) ---
   const mergedTOML: Record<string, unknown> = { ...existingTOML };
 
-  // Write top-level keys (model, model_provider, review_model, reasoning_effort, verbosity)
+  // Top-level keys (model, model_provider, review_model, reasoning_effort, verbosity)
   for (const key of CODEX_KEYS) {
     const tomlKey = TOML_TOP_KEYS[key];
     if (!tomlKey) continue; // BASE_URL and OPENAI_API_KEY handled separately
@@ -215,7 +235,7 @@ async function activateCodexConfigImpl(name: string, config: CodexConfig): Promi
     }
   }
 
-  // Write CODEX_CONTEXT_WINDOW as integer
+  // CODEX_CONTEXT_WINDOW as integer
   const ctxWindow = config.CODEX_CONTEXT_WINDOW;
   if (ctxWindow && ctxWindow.length > 0) {
     const num = parseInt(ctxWindow, 10);
@@ -232,7 +252,7 @@ async function activateCodexConfigImpl(name: string, config: CodexConfig): Promi
     }
   }
 
-  // Write BASE_URL as custom provider section
+  // BASE_URL as custom provider section
   const providerName = resolveProviderName(config, name);
   if (config.BASE_URL && config.BASE_URL.length > 0) {
     mergedTOML.model_provider = providerName;
@@ -260,6 +280,22 @@ async function activateCodexConfigImpl(name: string, config: CodexConfig): Promi
     }
   }
 
+  // auth.json decision
+  let authAction: "write" | "clear" | "skip" = "skip";
+  const apiKey = config.OPENAI_API_KEY;
+  if (apiKey && apiKey.length > 0) {
+    authAction = "write";
+  } else {
+    const currentAuth = readCodexAuthJSON();
+    if (currentAuth.apiKey && currentAuth.apiKey.length > 0) {
+      const keep = await promptKeepOrRemove("OPENAI_API_KEY", currentAuth.apiKey);
+      authAction = keep ? "skip" : "clear";
+    } else {
+      console.log(chalk.dim("OPENAI_API_KEY 未设置，跳过 auth.json 写入"));
+    }
+  }
+
+  // --- Phase 3: Write all configs at once ---
   try {
     const tomlStr = stringifyTOML(mergedTOML);
     writeFileSync(configPath, tomlStr + "\n", "utf-8");
@@ -268,38 +304,12 @@ async function activateCodexConfigImpl(name: string, config: CodexConfig): Promi
     return false;
   }
 
-  // --- Write auth.json ---
-  const apiKey = config.OPENAI_API_KEY;
-  if (apiKey && apiKey.length > 0) {
-    let existingAuth: Record<string, unknown> = {};
-    if (existsSync(authPath)) {
-      try {
-        const raw = readFileSync(authPath, "utf-8");
-        existingAuth = JSON.parse(raw);
-      } catch {
-        // overwrite
-      }
-    }
-
-    existingAuth.api_key = apiKey;
+  if (authAction === "write") {
+    existingAuth.OPENAI_API_KEY = apiKey;
     validateAndWriteJSON(authPath, existingAuth);
-  } else {
-    const existingAuth = readCodexAuthJSON();
-    if (existingAuth.apiKey && existingAuth.apiKey.length > 0) {
-      const keep = await promptKeepOrRemove("OPENAI_API_KEY", existingAuth.apiKey);
-      if (!keep) {
-        const authToWrite: Record<string, unknown> = {};
-        if (existsSync(authPath)) {
-          try {
-            Object.assign(authToWrite, JSON.parse(readFileSync(authPath, "utf-8")));
-          } catch { /* overwrite */ }
-        }
-        authToWrite.api_key = "";
-        validateAndWriteJSON(authPath, authToWrite);
-      }
-    } else {
-      console.log(chalk.dim("OPENAI_API_KEY 未设置，跳过 auth.json 写入"));
-    }
+  } else if (authAction === "clear") {
+    existingAuth.OPENAI_API_KEY = "";
+    validateAndWriteJSON(authPath, existingAuth);
   }
 
   console.log(chalk.green(`已激活配置 "${name}"`));
