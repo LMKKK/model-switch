@@ -25,8 +25,8 @@ npm install -g model-switch
 
 ```bash
 bun install
-bun run build
-# 构建产物为 dist/ms.js，可将其添加到 PATH
+bun run build        # 构建 JS 到 dist/ms.js
+bun run compile      # 编译为独立二进制到 bin/ms（无需 Node.js 运行时）
 ```
 
 ## 用法
@@ -39,25 +39,31 @@ ms <provider> <command> [options]
 
 ### Claude Code
 
-| 命令                      | 说明                                         |
-| ------------------------- | -------------------------------------------- |
-| `ms claude list`          | 列出所有已保存的配置，标记当前激活项         |
-| `ms claude add`           | 交互式新增模型配置                           |
-| `ms claude remove`        | 交互式移除已保存的配置                       |
-| `ms claude update <name>` | 逐项修改已有配置值                           |
-| `ms claude use <name>`    | 激活指定配置，写入 `~/.claude/settings.json` |
-| `ms claude current`       | 显示当前激活的配置名称及详情                 |
+| 命令                           | 说明                                         |
+| ------------------------------ | -------------------------------------------- |
+| `ms claude list`               | 列出所有已保存的配置，标记当前激活项         |
+| `ms claude add`                | 交互式新增模型配置                           |
+| `ms claude remove`             | 交互式移除已保存的配置（Tab 预览详情）       |
+| `ms claude update [name]`      | 逐项修改已有配置值（无参数时交互选择）       |
+| `ms claude use [name]`         | 激活指定配置（无参数时交互选择）             |
+| `ms claude current`            | 显示当前激活的配置名称及详情                 |
 
 ### Codex CLI
 
-| 命令                     | 说明                                                              |
-| ------------------------ | ----------------------------------------------------------------- |
-| `ms codex list`          | 列出所有已保存的配置，标记当前激活项                              |
-| `ms codex add`           | 交互式新增模型配置                                                |
-| `ms codex remove`        | 交互式移除已保存的配置                                            |
-| `ms codex update <name>` | 逐项修改已有配置值                                                |
-| `ms codex use <name>`    | 激活指定配置，写入 `~/.codex/config.toml` 和 `~/.codex/auth.json` |
-| `ms codex current`       | 显示当前激活的配置名称及详情                                      |
+| 命令                          | 说明                                                              |
+| ----------------------------- | ----------------------------------------------------------------- |
+| `ms codex list`               | 列出所有已保存的配置，标记当前激活项                              |
+| `ms codex add`                | 交互式新增模型配置                                                |
+| `ms codex remove`             | 交互式移除已保存的配置（Tab 预览详情）                            |
+| `ms codex update [name]`      | 逐项修改已有配置值（无参数时交互选择）                            |
+| `ms codex use [name]`         | 激活指定配置（无参数时交互选择）                                  |
+| `ms codex current`            | 显示当前激活的配置名称及详情                                      |
+
+### 交互操作
+
+- `update`、`use`、`remove` 命令均支持省略配置名称，进入交互式选择列表
+- 在选择列表中按 **Tab** 可预览该配置的完整详情
+- `current` 命令会自动匹配当前生效的配置，支持按指纹（URL + Token/Key）模糊识别
 
 ### 示例
 
@@ -71,17 +77,19 @@ ms claude add
 # 列出所有配置
 ms claude list
 
-# 激活配置
-ms claude use my-config
+# 激活配置（两种方式）
+ms claude use my-config     # 直接指定
+ms claude use               # 交互式选择，Tab 预览详情
 
 # 查看当前激活
 ms claude current
 
-# 修改配置
-ms claude update my-config
+# 修改配置（两种方式）
+ms claude update my-config  # 直接指定
+ms claude update            # 交互式选择
 
 # 删除配置
-ms claude remove
+ms claude remove            # 交互式选择，Tab 预览详情
 
 # === Codex CLI ===
 
@@ -110,12 +118,12 @@ ms codex current
 | 字段                             | 必填 |
 | -------------------------------- | ---- |
 | `ANTHROPIC_BASE_URL`             | 是   |
-| `ANTHROPIC_AUTH_TOKEN`           | 是   |
+| `ANTHROPIC_AUTH_TOKEN`           | 否   |
 | `ANTHROPIC_MODEL`                | 否   |
 | `ANTHROPIC_REASONING_MODEL`      | 否   |
 | `ANTHROPIC_DEFAULT_OPUS_MODEL`   | 否   |
-| `ANTHROPIC_DEFAULT_HAIKU_MODEL`  | 否   |
 | `ANTHROPIC_DEFAULT_SONNET_MODEL` | 否   |
+| `ANTHROPIC_DEFAULT_HAIKU_MODEL`  | 否   |
 
 ### Codex CLI
 
@@ -147,4 +155,7 @@ npx tsc --noEmit
 
 # 构建 JavaScript
 bun run build
+
+# 编译为独立二进制（无需 Node.js 运行时）
+bun run compile
 ```
