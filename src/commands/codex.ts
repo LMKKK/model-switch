@@ -59,6 +59,13 @@ function formatCodexValue(key: keyof CodexConfig, value: string): string {
   return value;
 }
 
+function validateContextWindow(v: string): true | string {
+  const trimmed = v.trim();
+  if (trimmed.length === 0) return true;
+  if (!/^\d+$/.test(trimmed)) return "需为非负整数（>= 0）";
+  return true;
+}
+
 // ---- list ----
 export async function listCommand(): Promise<void> {
   const { models, meta } = readStore<CodexConfig>("codex");
@@ -138,13 +145,21 @@ export async function addCommand(): Promise<void> {
           if (isRequired && v.trim().length === 0) {
             return "该字段为必填项";
           }
+          if (key === "CODEX_CONTEXT_WINDOW") {
+            return validateContextWindow(v);
+          }
           return true;
         },
       });
     } catch {
       return;
     }
-    config[key] = value.trim();
+    const trimmed = value.trim();
+    if (key === "CODEX_CONTEXT_WINDOW" && trimmed.length === 0) {
+      // 留空 = 未配置，不写入此 key
+      continue;
+    }
+    config[key] = trimmed;
   }
 
   config.CODEX_MODEL_PROVIDER = name;
@@ -296,11 +311,17 @@ export async function updateCommand(configName?: string): Promise<void> {
       value = await prefillInput({
         message: `${KEY_LABELS[key]}`,
         initial: currentValue,
+        validate: key === "CODEX_CONTEXT_WINDOW" ? validateContextWindow : undefined,
       });
     } catch {
       return;
     }
-    config[key] = value.trim();
+    const trimmed = value.trim();
+    if (key === "CODEX_CONTEXT_WINDOW" && trimmed.length === 0) {
+      delete config.CODEX_CONTEXT_WINDOW;
+      continue;
+    }
+    config[key] = trimmed;
   }
 
   // Provider 始终绑定配置名：改名后自动跟随新名

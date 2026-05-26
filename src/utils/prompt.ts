@@ -15,6 +15,7 @@ import {
 export interface PrefillInputConfig {
   message: string;
   initial: string;
+  validate?: (value: string) => boolean | string;
 }
 
 /**
@@ -27,15 +28,24 @@ export const prefillInput = createPrompt<string, PrefillInputConfig>(
     const theme = makeTheme();
     const [status, setStatus] = useState<Status>("idle");
     const [value, setValue] = useState("");
+    const [error, setError] = useState<string>("");
     const prefix = usePrefix({ status, theme });
 
     useKeypress((key, rl) => {
       if (status !== "idle") return;
 
       if (isEnterKey(key)) {
+        if (config.validate) {
+          const result = config.validate(value);
+          if (result !== true) {
+            setError(typeof result === "string" ? result : "无效输入");
+            return;
+          }
+        }
         setStatus("done");
         done(value);
       } else {
+        if (error) setError("");
         setValue(rl.line);
       }
     });
@@ -51,7 +61,11 @@ export const prefillInput = createPrompt<string, PrefillInputConfig>(
     const display =
       status === "done" ? theme.style.answer(value) : value;
 
-    return `${prefix} ${msg} ${display}`;
+    const errorSection = error && status === "idle"
+      ? theme.style.error(`> ${error}`)
+      : undefined;
+
+    return [`${prefix} ${msg} ${display}`, errorSection];
   },
 );
 

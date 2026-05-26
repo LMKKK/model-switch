@@ -16,7 +16,7 @@ export interface CodexConfig {
   CODEX_REVIEW_MODEL: string;
   CODEX_REASONING_EFFORT: string;
   CODEX_VERBOSITY: string;
-  CODEX_CONTEXT_WINDOW: string;
+  CODEX_CONTEXT_WINDOW?: string;
 }
 
 export interface ModelStoreMeta {
