@@ -288,6 +288,8 @@ export async function updateCommand(configName?: string): Promise<void> {
   }
 
   for (const key of CODEX_KEYS) {
+    if (key === "CODEX_MODEL_PROVIDER") continue;
+
     const currentValue = source[key] || "";
     let value: string;
     try {
@@ -301,10 +303,8 @@ export async function updateCommand(configName?: string): Promise<void> {
     config[key] = value.trim();
   }
 
-  // 改名时同步 CODEX_MODEL_PROVIDER（仅当用户未在字段循环中手动改成其他值时）
-  if (finalName !== configName && config.CODEX_MODEL_PROVIDER === configName) {
-    config.CODEX_MODEL_PROVIDER = finalName;
-  }
+  // Provider 始终绑定配置名：改名后自动跟随新名
+  config.CODEX_MODEL_PROVIDER = finalName;
 
   // Diff & confirm
   const oldConfig = models[configName]!;
@@ -358,6 +358,9 @@ export async function updateCommand(configName?: string): Promise<void> {
     return;
   }
 
+  // 在 writeStore 之前判断是否为当前激活配置（writeStore 后旧名可能已被删除，状态会失真）
+  const wasActive = matchCurrentCodexConfig().name === configName;
+
   const oldAddedAt = meta[configName]?.addedAt;
   if (renamed) {
     delete models[configName];
@@ -371,19 +374,31 @@ export async function updateCommand(configName?: string): Promise<void> {
   };
   writeStore<CodexConfig>("codex", { models, meta });
 
-  // 改名 + 当前激活的就是被改名的配置 → 同步更新 TOML
-  if (renamed) {
-    const currentInToml = matchCurrentCodexConfig();
-    if (currentInToml.name === configName) {
-      await activateCodexConfig(finalName, config);
-      removeCodexProvider(configName);
-    }
-  }
-
   if (renamed) {
     console.log(chalk.green(`\n已更新配置 "${configName}" → "${finalName}"`));
   } else {
     console.log(chalk.green(`\n已更新配置 "${configName}"`));
+  }
+
+  if (wasActive) {
+    let syncActive: boolean;
+    try {
+      syncActive = await confirm({
+        message: `当前激活的就是 "${configName}"，是否同步更新 ~/.codex/config.toml？`,
+        default: true,
+      });
+    } catch {
+      return;
+    }
+    if (syncActive) {
+      const ok = await handleMissingCodexFiles();
+      if (ok) {
+        await activateCodexConfig(finalName, config);
+        if (renamed) {
+          removeCodexProvider(configName);
+        }
+      }
+    }
   }
 }
 

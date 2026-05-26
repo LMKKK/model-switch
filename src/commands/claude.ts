@@ -341,6 +341,9 @@ export async function updateCommand(configName?: string): Promise<void> {
     return;
   }
 
+  // 在 writeStore 之前判断是否为当前激活配置（writeStore 后旧名可能已被删除，状态会失真）
+  const wasActive = matchCurrentConfig().name === configName;
+
   const oldAddedAt = meta[configName]?.addedAt;
   if (renamed) {
     delete models[configName];
@@ -357,6 +360,24 @@ export async function updateCommand(configName?: string): Promise<void> {
     console.log(chalk.green(`\n已更新配置 "${configName}" → "${finalName}"`));
   } else {
     console.log(chalk.green(`\n已更新配置 "${configName}"`));
+  }
+
+  if (wasActive) {
+    let syncActive: boolean;
+    try {
+      syncActive = await confirm({
+        message: `当前激活的就是 "${configName}"，是否同步更新 ~/.claude/settings.json？`,
+        default: true,
+      });
+    } catch {
+      return;
+    }
+    if (syncActive) {
+      const ok = await handleMissingSettings();
+      if (ok) {
+        await activateConfig(finalName, config);
+      }
+    }
   }
 }
 
