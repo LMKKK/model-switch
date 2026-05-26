@@ -258,6 +258,23 @@ export async function updateCommand(configName?: string): Promise<void> {
   console.log(chalk.bold(`\n更新配置 "${configName}":`));
   console.log(chalk.cyan("当前值已填充到输入框，可直接编辑或清空\n"));
 
+  // 先询问配置名称（留空或与原名相同则不改名）
+  let nameInput: string;
+  try {
+    nameInput = await prefillInput({
+      message: "配置名称",
+      initial: configName,
+    });
+  } catch {
+    return;
+  }
+  const trimmedName = nameInput.trim();
+  const finalName = trimmedName === "" || trimmedName === configName ? configName : trimmedName;
+  if (finalName !== configName && models[finalName]) {
+    console.log(chalk.red(`\n配置 "${finalName}" 已存在，无法重命名`));
+    return;
+  }
+
   for (const key of ANTHROPIC_KEYS) {
     const currentValue = source[key] || "";
     let value: string;
@@ -276,30 +293,38 @@ export async function updateCommand(configName?: string): Promise<void> {
   const oldConfig = models[configName]!;
   const diffKeys = computeDiffKeys<keyof ModelConfig>(ANTHROPIC_KEYS, oldConfig as Partial<Record<keyof ModelConfig, string>>, config);
 
-  if (diffKeys.size === 0) {
+  const renamed = finalName !== configName;
+  if (diffKeys.size === 0 && !renamed) {
     console.log(chalk.dim("\n配置未发生变更"));
     return;
   }
 
   console.log(chalk.bold("\n变更预览:\n"));
 
-  console.log(chalk.dim("  修改前:"));
-  printDiffSection<keyof ModelConfig>(
-    oldConfig as Partial<Record<keyof ModelConfig, string>>,
-    ANTHROPIC_KEYS,
-    KEY_LABELS,
-    diffKeys,
-    formatAnthropicValue,
-  );
+  if (renamed) {
+    console.log(chalk.dim("  名称: ") + chalk.red(configName) + chalk.dim(" → ") + chalk.green(finalName));
+    console.log();
+  }
 
-  console.log(chalk.green("  修改后:"));
-  printDiffSection<keyof ModelConfig>(
-    config,
-    ANTHROPIC_KEYS,
-    KEY_LABELS,
-    diffKeys,
-    formatAnthropicValue,
-  );
+  if (diffKeys.size > 0) {
+    console.log(chalk.dim("  修改前:"));
+    printDiffSection<keyof ModelConfig>(
+      oldConfig as Partial<Record<keyof ModelConfig, string>>,
+      ANTHROPIC_KEYS,
+      KEY_LABELS,
+      diffKeys,
+      formatAnthropicValue,
+    );
+
+    console.log(chalk.green("  修改后:"));
+    printDiffSection<keyof ModelConfig>(
+      config,
+      ANTHROPIC_KEYS,
+      KEY_LABELS,
+      diffKeys,
+      formatAnthropicValue,
+    );
+  }
 
   let confirmed: boolean;
   try {
@@ -316,15 +341,23 @@ export async function updateCommand(configName?: string): Promise<void> {
     return;
   }
 
-  models[configName] = config;
+  const oldAddedAt = meta[configName]?.addedAt;
+  if (renamed) {
+    delete models[configName];
+    delete meta[configName];
+  }
+  models[finalName] = config;
   const now = new Date().toISOString();
-  const existing = meta[configName];
-  meta[configName] = {
-    addedAt: existing?.addedAt ?? now,
+  meta[finalName] = {
+    addedAt: oldAddedAt ?? now,
     updatedAt: now,
   };
   writeStore<ModelConfig>("claude", { models, meta });
-  console.log(chalk.green(`\n已更新配置 "${configName}"`));
+  if (renamed) {
+    console.log(chalk.green(`\n已更新配置 "${configName}" → "${finalName}"`));
+  } else {
+    console.log(chalk.green(`\n已更新配置 "${configName}"`));
+  }
 }
 
 // ---- use ----
