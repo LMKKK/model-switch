@@ -209,6 +209,14 @@ export async function removeCommand(): Promise<void> {
     return;
   }
 
+  const isActive = matchCurrentCodexConfig().name === target;
+
+  if (isActive) {
+    console.log(chalk.yellow(`\n⚠ "${target}" 是当前激活配置`));
+    console.log(chalk.dim("  删除后：仓库中将不再有此配置的备份；"));
+    console.log(chalk.dim("  ~/.codex/config.toml 与 ~/.codex/auth.json 保持不变，Codex CLI 仍可使用当前已生效的设置。"));
+  }
+
   let confirmed: boolean;
   try {
     confirmed = await confirm({
@@ -227,8 +235,13 @@ export async function removeCommand(): Promise<void> {
   delete models[target];
   delete meta[target];
   writeStore<CodexConfig>("codex", { models, meta });
-  removeCodexProvider(target);
+  if (!isActive) {
+    removeCodexProvider(target);
+  }
   console.log(chalk.green(`已删除配置 "${target}"`));
+  if (isActive) {
+    console.log(chalk.dim("（目标文件未改动，如需切换请使用 ms codex use）"));
+  }
 }
 
 // ---- update ----
