@@ -159,3 +159,47 @@ bun run build
 # 编译为独立二进制（无需 Node.js 运行时）
 bun run compile
 ```
+
+## Shell 补全
+
+### 安装
+
+```bash
+ms completion --install
+# 或使用短形式
+ms completion -i
+```
+
+自动检测当前 shell 并安装补全脚本到 `~/.bashrc` / `~/.zshrc`。安装后请运行 `source ~/.bashrc`（或重启终端）使配置生效。
+
+### 手动使用
+
+```bash
+# 输出补全脚本
+ms completion bash   # bash
+ms completion zsh    # zsh
+ms completion fish   # fish
+
+# 立即启用（当前会话）
+source <(ms completion $SHELL)
+```
+
+### 补全内容
+
+- 顶级命令：`claude`, `codex`, `completion`
+- `claude` / `codex` 子命令：`list`, `add`, `remove`, `update`, `use`, `current`
+
+### 卸载
+
+**bash / zsh**：删除以下两行：
+
+```bash
+# model-switch 补全
+eval "$(ms completion zsh)"
+```
+
+**fish**：
+
+```bash
+rm ~/.config/fish/completions/ms.fish
+```
